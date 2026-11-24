@@ -37,6 +37,7 @@ What's built on the shared core so far, and what's next. The scope is [SCOPE.md]
   - **My station.** Its sessions, and each race passing with its first runner, cut-off countdown, drop bags, relay changes and pacers.
   - **Report in.** Open, update or closed, with stock, staff and crowding and a 2-hour reminder.
   - **Stocktake.** Every 2 hours, each item on the station's pack list (events/buffalo-2027/stock.js, built by tools/events/buffalo/stock.py from the Aid Station Consumptions sheet) as Plenty, Half, Low or Out, count optional. The phone buzzes when one is due.
+  - **Runners through** (js/through.js): the share of the session's runners through, per race and pass. Live from the timing mats; until then from the 2026 100k arrival curves (events/buffalo-2027/arrivals.js, fitted by tools/events/buffalo/arrivals.mjs to the 2026 Living It Live GPS tracks) or, for races not tracked in 2026, the race sheet. Stocktake counts are checked against what the rest of the field needs.
   - **Restock runs** from the yard, marked received.
   - **Ask the yard.** Supplies in a tap; the yard answers and HQ sees it.
 - **Yard screen** (scope 4.3a): the same tab signed in as Yard. Every station's latest stocktake (Low and Out first, late ones flagged), requests, restock triggers, building and tracking restock runs, and the yard and coolroom stocktake.
@@ -46,7 +47,7 @@ What's built on the shared core so far, and what's next. The scope is [SCOPE.md]
   - Every station's session and last report, marked **Report overdue** when an open station hasn't reported for 2 hours or hasn't opened 15 minutes into its session.
   - The request queue, with On its way and Done.
   - **Call a hold** at every station or chosen ones, with each station's confirmation, and release it.
-  - Each station's latest stocktake, and the restock runs and yard stocktake.
+  - Each station's runners through, latest stocktake, and the restock runs and yard stocktake.
   - The station codes, and the yard's.
 - **Risk tab.** The **Station reports** line is live, and a HOLD decision can be sent to every station.
 

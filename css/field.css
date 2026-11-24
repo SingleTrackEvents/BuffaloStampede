@@ -267,3 +267,4 @@ body.field .fd-rp .btn.small { min-height: 44px; }
 .care-list li.stk-late { border-left: 4px solid var(--red, #c0392b); padding-left: 8px; }
 .care-list li.past { opacity: .55; }
 details > summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+.stk-short { color: var(--red, #c0392b); } .stn-through small, .stk-sum small { display: block; opacity: .7; font-size: 12px; } .stn-through b { font-size: 20px; }

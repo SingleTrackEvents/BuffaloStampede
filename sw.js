@@ -6,7 +6,7 @@
 // few seconds (weak signal). Leaflet and the fonts are served with the app (lib/) and saved with each build, so nothing
 // the pages need comes from another site. Map tiles are cached as they're used; the topo map can also be saved whole
 // (js/basemap.js).
-const BUILD = '25';
+const BUILD = '26';
 const VERSION = 'st-v' + BUILD;
 const NEXT = 'st-next-v'; // + a newer build: files for its pages, fetched before that build's worker is in
 // Pages, manifests and icons, saved by their own address.
@@ -19,14 +19,14 @@ const PAGES = ['./', 'index.html', 'field.html', 'runner.html', 'map.html', 'adm
 // Scripts and styles, saved as the pages ask for them (with ?v=BUILD).
 const FILES = [
   'lib/fonts.css', 'lib/leaflet.css', 'lib/leaflet.js', 'js/live.js', 'css/app.css', 'css/field.css', 'css/runner.css', 'js/engine.js', 'js/app.js', 'js/medplan.js', 'js/weather-core.js', 'js/weather.js', 'js/rc.js', 'js/cover.js', 'js/care-hq.js', 'js/stations-hq.js', 'js/conditions.js', 'js/basemap.js', 'js/intro.js',
-  'events/events.js', 'js/event.js', 'js/viewport.js', 'js/races.js', 'js/profile.js', 'js/helipads.js', 'js/track.js', 'js/timing.js', 'js/tracking.js', 'js/fullscreen.js', 'js/runners.js', 'js/demo.js', 'js/map.js', 'js/field.js', 'js/care.js', 'js/jobs.js', 'js/station.js', 'js/runner.js', 'js/track-tab.js', 'js/heading.js', 'js/contingency.js',
+  'events/events.js', 'js/event.js', 'js/viewport.js', 'js/races.js', 'js/profile.js', 'js/helipads.js', 'js/track.js', 'js/timing.js', 'js/tracking.js', 'js/fullscreen.js', 'js/runners.js', 'js/demo.js', 'js/map.js', 'js/field.js', 'js/care.js', 'js/jobs.js', 'js/station.js', 'js/through.js', 'js/runner.js', 'js/track-tab.js', 'js/heading.js', 'js/contingency.js',
 ];
 // Event packs (events/<id>/): the events marked precache in events/events.js are saved whole at install, so a phone
 // works offline before anyone opens them. Any other event's files are saved the first time a page asks for them.
 const PRECACHE_EVENTS = ['buffalo-2027'];
 const EVENT_FILES = ['config.js', 'course.js', 'courses.js', 'course-w3w.js', 'access-edits.js', 'medplan.enc.js', 'register.enc.js', 'safety-officers.js',
   'pacing.js', 'splits.js', 'contingency.js', 'tiles.js', 'helipads.js', 'track-grades.js', 'demo-runners.js', 'races.js', 'runner-courses.js',
-  'runner-info.js', 'safety-cards.js', 'crew-drives.js', 'cover.js', 'conditions.js', 'stock.js'];
+  'runner-info.js', 'safety-cards.js', 'crew-drives.js', 'cover.js', 'conditions.js', 'stock.js', 'arrivals.js'];
 FILES.push(...PRECACHE_EVENTS.flatMap(id => EVENT_FILES.map(f => 'events/' + id + '/' + f)));
 PAGES.push(...PRECACHE_EVENTS.flatMap(id => ['logo.png', 'logo-light.png', 'icon-48.png', 'icon-180.png', 'icon-192.png', 'icon-512.png',
   'manifest-staff.webmanifest', 'manifest-field.webmanifest', 'manifest-runner.webmanifest'].map(f => 'events/' + id + '/' + f)));
