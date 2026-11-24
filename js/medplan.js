@@ -340,7 +340,7 @@
   function startLive() { if (!liveTimer) liveTimer = setInterval(() => { if (isLive()) update(); refreshFind(); }, 60000); }
   if (window.GPTTracking) GPTTracking.onUpdate(() => { if (built && P) { liveRunners(); updateMap(curH()); } });
   function stopLive() { if (liveTimer) { clearInterval(liveTimer); liveTimer = null; } }
-  function refreshFind() { if (window.GPT_UI) window.GPT_UI.refresh(); drawFindLayer(); if (window.RaceControl) window.RaceControl.onAuth(); if (window.RiskTab) window.RiskTab.onAuth(); }
+  function refreshFind() { if (window.GPT_UI) window.GPT_UI.refresh(); drawFindLayer(); if (window.RaceControl) window.RaceControl.onAuth(); if (window.RiskTab && window.RiskTab.onAuth) window.RiskTab.onAuth(); if (window.CareHQ && window.CareHQ.onAuth) window.CareHQ.onAuth(); }
 
   // ---------- Safety Officer posts on the Find map ----------
   let findLayer = null, soKey = null;

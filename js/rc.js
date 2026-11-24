@@ -307,7 +307,7 @@
         e.preventDefault(); const pw = $('rcPw').value; if (!pw || !window.MedPlan) return;
         $('rcPwMsg').textContent = 'Checking...';
         try { await window.MedPlan.unlock(pw); }
-        catch (err) { $('rcPwMsg').textContent = /wrong password/i.test(err.message) ? 'That password didn\'t work.' : 'Couldn\'t check the password: no signal, or the Worker isn\'t set up yet.'; }
+        catch (err) { if ($('rcPwMsg')) $('rcPwMsg').textContent = /wrong password/i.test(err.message) ? 'That password didn\'t work.' : 'Couldn\'t check the password: no signal, or the Worker isn\'t set up yet.'; }
       });
       return;
     }

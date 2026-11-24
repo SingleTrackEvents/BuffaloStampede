@@ -100,6 +100,7 @@
   }
   window.CareHQ = {
     onShow() { shown = true; render(); load(); clearInterval(timer); timer = setInterval(load, 30000); },
-    onHide() { shown = false; clearInterval(timer); }
+    onHide() { shown = false; clearInterval(timer); },
+    onAuth() { if (shown) { render(); load(); } }
   };
 })();
