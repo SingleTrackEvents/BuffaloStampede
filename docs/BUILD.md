@@ -32,6 +32,20 @@ What's built on the shared core so far, and what's next. The scope is [SCOPE.md]
 - **Event picker** on every page, and tabs switched on per event (`data-module`).
 - **Medical log and withdrawals** (docs/MEDICAL_AND_RISK.md, section 7): the field app's Log tab and the staff app's Medical tab, on the Worker's `care` table.
 
+- **Aid Station Manager screen** (scope 4.3), in the field app's **Station** tab:
+  - **Sign-in.** Each manager signs in with their own station's code, issued by HQ, and sees only that station.
+  - **My station.** Its sessions, and each race passing with its first runner, cut-off countdown, drop bags, relay changes and pacers.
+  - **Report in.** Open, update or closed, with stock, staff and crowding and a 2-hour reminder.
+  - **Ask HQ.** Supplies in a tap, with HQ's answer coming back.
+  - **Holds.** Confirmed in a tap, and the phone buzzes when one is called.
+  - **Withdrawals and handover.** Withdrawals go into the medical log, and a shift handover note is kept.
+- **Staff app, Stations tab.**
+  - Every station's session and last report, marked **Report overdue** when an open station hasn't reported for 2 hours or hasn't opened 15 minutes into its session.
+  - The request queue, with On its way and Done.
+  - **Call a hold** at every station or chosen ones, with each station's confirmation, and release it.
+  - The station codes.
+- **Risk tab.** The **Station reports** line is live, and a HOLD decision can be sent to every station.
+
 ## Next, for Buffalo (scope section 10, phases 1 to 3)
 
 - Drive times from Bright to each access point (checked routes), what3words along the courses, the saved topo map, and demo runners for rehearsals.

@@ -30,6 +30,7 @@
     if (window.RiskTab) { if (name === 'risk') window.RiskTab.onShow(); else window.RiskTab.onHide(); }
     if (window.RaceControl) { if (name === 'rc') window.RaceControl.onShow(); else window.RaceControl.onHide(); }
     if (window.CareHQ) { if (name === 'medlog') window.CareHQ.onShow(); else window.CareHQ.onHide(); }
+    if (window.StationsHQ) { if (name === 'stations') window.StationsHQ.onShow(); else window.StationsHQ.onHide(); }
     if (window.WeatherTab) { if (name === 'wx') window.WeatherTab.onShow(); else window.WeatherTab.onHide(); }
     if (name === 'med' && window.MedPlan) window.MedPlan.onShow();
     if (name === 'find' && map) setTimeout(() => map.invalidateSize(), 0);

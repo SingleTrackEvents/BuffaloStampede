@@ -191,4 +191,4 @@ Fixed on the way:
 - An error after unlocking stopped the new tabs refreshing.
 - The hourly weather watch had never run in this repository. It was started by hand and has now published Buffalo's and Buller's weather.
 
-Next for Risk: holds confirmed by each Aid Station Manager, and station report-ins (both with the Aid Station Manager screen).
+Holds confirmed by each Aid Station Manager and station report-ins came with the Aid Station Manager screen (24 November): the **Station reports** line is live, and a HOLD decision can go straight to every station.
