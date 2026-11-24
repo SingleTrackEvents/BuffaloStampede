@@ -171,4 +171,24 @@ The plan check finds three things in the current drafts:
 2. **Buckland Valley.** No medical post, with 100k runners from Saturday 07:42 to Sunday 04:40 and 42k runners on Sunday morning (option B3 covers only Sunday 09:30 to 13:30).
 3. **Cresta Valley.** No medical post, with 100k runners from Saturday 10:29 to 19:30 (option B2; 33 runners were treated there in 2026).
 
-Next: the Conditions board and decisions (section 4).
+**Risk, rebuilt** (section 4), live for Buffalo on the staff app's **Risk** tab:
+
+- **Conditions board** (4.1). One line for each condition in `events/buffalo-2027/conditions.js`, green, amber or red, with the BSF27 Risk Management Plan v1.5's trigger and pre-agreed response on each.
+  - Weather lines (fire, lightning, heat, cold, wind and snow, rain, smoke) come from the hourly weather watch.
+  - Heat presentations (three in an hour) and the busiest post come from the medical log.
+  - Medical posts on post come from cover.
+  - Transport, missing runners (runners of concern unseen over an hour, lost or overdue entries) and open incidents come from Control.
+  - Station reports wait for the Aid Station Manager screen.
+- **Decide** (4.2). On any line, the Event Manager picks the response (PROCEED, MODIFY, HOLD, SUSPEND, CANCEL), adds a few words and the actions (who, by when), and can send a notice to every phone as important.
+  - One tap records it with the board as it stood.
+  - It goes into HQ's log, and is locked except for ticking actions off.
+- **Checks** (4.3). Pick a review point (7 days out to every 6 hours) and mark six items from Appendix A OK or Issue. The board's lines are filled in. Pick the decision and sign off in one tap.
+- **Decisions and Open actions** are listed beside the board, and open actions can be ticked off from any device.
+
+Fixed on the way:
+
+- The Worker had dropped every list in a change, so actions, check items and the conditions snapshot were lost. They're kept now.
+- An error after unlocking stopped the new tabs refreshing.
+- The hourly weather watch had never run in this repository. It was started by hand and has now published Buffalo's and Buller's weather.
+
+Next for Risk: holds confirmed by each Aid Station Manager, and station report-ins (both with the Aid Station Manager screen).

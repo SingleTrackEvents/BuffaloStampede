@@ -738,6 +738,7 @@
     try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { }
     // Running Wild has no Medical or Risk tab: old links to them open Control, where the password goes.
     if (h === 'medical' && ST.has('medical')) { showTab('medlog'); return; }
+    if (h === 'risk' && ST.has('risk')) { showTab('risk'); return; }
     if (h === 'medical' || h === 'risk') { showTab('rc'); return; }
     if (h === 'weather') { showTab('wx'); return; }
     if (h === 'control') { showTab('rc'); return; }

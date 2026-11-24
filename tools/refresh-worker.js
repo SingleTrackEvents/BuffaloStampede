@@ -168,6 +168,8 @@ function cleanPatch(p) {
   for (const [k, v] of Object.entries(p || {})) {
     if (!/^[a-zA-Z0-9_]{1,40}$/.test(k)) continue;
     if (v && typeof v === 'object' && !Array.isArray(v)) out[k] = cleanPatch(v);
+    // Lists (a decision's actions, a check's items and the conditions it saw): up to 100, each cleaned the same way.
+    else if (Array.isArray(v)) out[k] = v.slice(0, 100).map(x => x && typeof x === 'object' && !Array.isArray(x) ? cleanPatch(x) : typeof x === 'string' || typeof x === 'number' || typeof x === 'boolean' ? clip(x) : null);
     else if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean' || v === null) out[k] = clip(v);
   }
   return out;
