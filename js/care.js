@@ -11,7 +11,8 @@
   if (!box || !window.ST || !ST.has('medical')) return;
   const LV = window.GPTLive, E = window.GPT;
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const K = 'st.care.' + ST.event.id + '.';
+  // The practice mode (js/demo.js) keeps its own sign-in and queue, so nothing from a rehearsal reaches the race.
+  const K = 'st.care.' + ST.event.id + (window.GPTDemo && GPTDemo.rcBase ? '.demo' : '') + '.';
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(K + k)); return v == null ? d : v; } catch (e) { return d; } };
   const save = (k, v) => { try { localStorage.setItem(K + k, JSON.stringify(v)); } catch (e) { } };
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');

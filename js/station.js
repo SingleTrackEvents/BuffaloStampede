@@ -25,7 +25,8 @@
   if (!box || !window.ST || !ST.has('aid')) return;
   const LV = window.GPTLive, R = window.GPT_RACES || { stages: {} }, P = window.ST_COVER || {};
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const K = 'st.stn.' + ST.event.id + '.';
+  // The practice mode (js/demo.js) keeps its own sign-in and queue, so nothing from a rehearsal reaches the race.
+  const K = 'st.stn.' + ST.event.id + (window.GPTDemo && GPTDemo.rcBase ? '.demo' : '') + '.';
   const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(K + k)); return v == null ? d : v; } catch (e) { return d; } };
   const save = (k, v) => { try { localStorage.setItem(K + k, JSON.stringify(v)); } catch (e) { } };
   const rid = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
@@ -46,6 +47,8 @@
   const list = post => S && S.stations[post] ? Object.keys(S.stations[post]) : [];
   const unitOf = id => IT[id] ? IT[id].unit : '', nameOf = id => IT[id] ? IT[id].name : id;
   const TH = window.STThrough, thr = (post, t) => TH ? TH.station(post, t) : null;
+  // The clock: the practice mode's race time when it's on (js/demo.js), else the real time.
+  const clk = () => TH ? TH.clock() : Date.now();
   // Items whose count won't cover the runners still to come: [id, count, needed].
   const shortOf = (x, post, th) => !th || !S || !S.stations[post] ? [] : Object.keys(x.counts || {}).filter(k => S.stations[post][k]).map(k => [k, x.counts[k], TH.need(S.stations[post][k], th.pct)]).filter(([, c, n]) => c < n);
   const thLine = th => th ? `<b>${TH.pc(th.pct)}</b> of this session's runners through (${th.through} of ${th.live && !th.estimate ? '' : 'about '}${th.total})${th.estimate ? '<small>Estimated from how the 2026 field ran (the race sheet where there are no 2026 tracks), until the timing mats are live.</small>' : '<small>From the timing mats.</small>'}` : '';
@@ -57,7 +60,7 @@
   // Stocktake drafts (the station's, and the yard's by location), the run being built, and whether a render is waiting
   // for the manager to finish typing.
   let stk = { levels: {}, counts: {} }, ystk = { loc: S && S.yard ? S.yard[0] : YARD, levels: {}, counts: {} }, run = null, held = false;
-  const say = t => { flash = t; flashT = Date.now(); const m = $('stnMsg'); if (m) m.textContent = t; };
+  const say = t => { flash = t; flashT = clk(); const m = $('stnMsg'); if (m) m.textContent = t; };
 
   async function call(path, body) {
     const r = await fetch(base() + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
@@ -88,7 +91,7 @@
     try { const r = await call('/stn/list', { code: me.code, post: me.post }); rows = r.rows || []; } catch (e) { }
     now ? render() : draw();
   }
-  function add(e) { q.push(Object.assign({ id: rid(), t: Date.now(), who: me.who }, e)); save('q', q); render(); flush(); }
+  function add(e) { q.push(Object.assign({ id: rid(), t: clk(), who: me.who }, e)); save('q', q); render(); flush(); }
   const all = () => { const m = new Map(rows.map(x => [x.id, x])); q.filter(x => x.to !== 'care').forEach(x => m.set(x.id, Object.assign({ post: x.kind === 'run' ? x.to : me.post }, x))); return [...m.values()]; };
   // A run's state: the latest word on it from the yard or the station.
   const runState = (A, r) => { const s = A.filter(x => x.kind === 'runstate' && x.run === r.id).sort((a, b) => b.t - a.t)[0]; return s ? s.state : 'planned'; };
@@ -107,7 +110,7 @@
     return out.sort((a, b) => a.first - b.first);
   }
   function holds() {
-    const A = all(), now = Date.now();
+    const A = all(), now = clk();
     return A.filter(x => x.kind === 'hold' && (x.post === '*' || x.post === me.post) && !A.some(y => y.kind === 'release' && y.hold === x.hold) && now - x.t < 24 * 3600e3)
       .map(h => Object.assign({ acked: A.some(y => y.kind === 'holdack' && y.hold === h.hold && y.post === me.post) }, h));
   }
@@ -148,10 +151,10 @@
   function render() {
     if (!me.post) return signIn();
     if (isYard()) return renderYard();
-    const now = Date.now(), A = all(), H = holds(), ss = sessions(), ps = passes(), th = thr(me.post, now);
+    const now = clk(), rnow = now, A = all(), H = holds(), ss = sessions(), ps = passes(), th = thr(me.post, rnow);
     const thOf = p => th && th.passes.find(x => x.race === p.race && x.pass === p.pass && x.first === p.first);
     const reports = A.filter(x => x.kind === 'report' && x.post === me.post).sort((a, b) => b.t - a.t), last = reports[0];
-    const openNow = ss.find(s => s.a <= now && now < s.z), next = ss.find(s => s.a > now);
+    const openNow = ss.find(s => s.a <= rnow && rnow < s.z), next = ss.find(s => s.a > rnow);
     const isOpen = last && last.type !== 'close';
     const due = isOpen ? last.t + REPORT_MS : null;
     const reqs = A.filter(x => x.kind === 'request' && x.post === me.post).sort((a, b) => b.t - a.t).slice(0, 8);
@@ -160,9 +163,9 @@
     box.innerHTML = `${H.map(h => `<section class="fd-card stn-hold${h.acked ? ' acked' : ''}"><h2>Hold</h2><p>${esc(h.text)}</p><p class="fd-hint">Called ${esc(hm(h.t))}${h.who ? ' by ' + esc(h.who) : ''}.</p>
         ${h.acked ? '<p><b>You confirmed you\'re holding.</b> Keep runners here until ' + esc(ST.hq) + ' releases the hold.</p>' : `<button class="btn primary" data-hold="${esc(h.hold)}" type="button">We're holding runners</button>`}</section>`).join('')}
       <section class="fd-card"><h2>${esc(me.post)}</h2><p class="fd-hint">${esc(me.who)} · <button type="button" class="linkbtn" id="stnOut">Sign out</button></p>${unsent}
-        <p>${openNow ? `Session now: <b>${esc(hm(openNow.a))} to ${esc(hm(openNow.z))}</b>.` : next ? `Next session: <b>${esc(hm(next.a))} to ${esc(hm(next.z))}</b> (in ${dur(next.a - now)}).` : 'No more sessions in the plan.'}
+        <p>${openNow ? `Session now: <b>${esc(hm(openNow.a))} to ${esc(hm(openNow.z))}</b>.` : next ? `Next session: <b>${esc(hm(next.a))} to ${esc(hm(next.z))}</b> (in ${dur(next.a - rnow)}).` : 'No more sessions in the plan.'}
           ${th ? '<p class="stn-through">' + thLine(th) + '</p>' : ''}${isOpen ? ` Last report ${esc(hm(last.t))}. ${now > due ? '<b class="stn-late">Report due now.</b>' : 'Next report due ' + esc(hm(due)) + '.'}` : ' Not reported open yet.'}</p>
-        ${ps.length ? `<table class="stn-t"><thead><tr><th>Race</th><th>First runner</th><th>Cut-off</th>${th ? '<th>Through</th>' : ''}</tr></thead><tbody>${ps.map(p => `<tr class="${p.cut && now > p.cut ? 'past' : ''}"><td>${esc(p.race)}${p.pass ? ' (' + esc(p.pass) + ')' : ''}${p.drop ? '<small>Drop bags</small>' : ''}${p.team ? '<small>Relay change</small>' : ''}${p.pacer ? '<small>Pacers</small>' : ''}</td><td>${esc(hm(p.first))}</td><td>${p.cut ? esc(hm(p.cut)) + (now < p.cut && p.cut - now < 6 * 3600e3 ? '<small>in ' + dur(p.cut - now) + '</small>' : '') : 'None'}</td>${th ? `<td>${thOf(p) ? TH.pc(thOf(p).pct) + '<small>' + thOf(p).through + ' of ' + thOf(p).total + '</small>' : ''}</td>` : ''}</tr>`).join('')}</tbody></table>
+        ${ps.length ? `<table class="stn-t"><thead><tr><th>Race</th><th>First runner</th><th>Cut-off</th>${th ? '<th>Through</th>' : ''}</tr></thead><tbody>${ps.map(p => `<tr class="${p.cut && rnow > p.cut ? 'past' : ''}"><td>${esc(p.race)}${p.pass ? ' (' + esc(p.pass) + ')' : ''}${p.drop ? '<small>Drop bags</small>' : ''}${p.team ? '<small>Relay change</small>' : ''}${p.pacer ? '<small>Pacers</small>' : ''}</td><td>${esc(hm(p.first))}</td><td>${p.cut ? esc(hm(p.cut)) + (rnow < p.cut && p.cut - rnow < 6 * 3600e3 ? '<small>in ' + dur(p.cut - rnow) + '</small>' : '') : 'None'}</td>${th ? `<td>${thOf(p) ? TH.pc(thOf(p).pct) + '<small>' + thOf(p).through + ' of ' + thOf(p).total + '</small>' : ''}</td>` : ''}</tr>`).join('')}</tbody></table>
           <p class="fd-hint">First runners are the race sheet's prediction. Live counts of who's due come with the tracking feed.</p>` : ''}</section>
       <section class="fd-card"><h2>Report in</h2><p class="fd-hint">When you open, every 2 hours, whenever something changes, and when you close.</p>
         ${chips('type', [['open', 'Open'], ['status', 'Update'], ['close', 'Closed']], rep.type)}
@@ -182,7 +185,7 @@
     bind();
   }
   function stockCard(A, now) {
-    const ids = list(me.post), prev = lastStock(A, me.post), due = prev ? prev.t + STOCK_MS : null, th = thr(me.post, now);
+    const ids = list(me.post), prev = lastStock(A, me.post), due = prev ? prev.t + STOCK_MS : null, th = thr(me.post);
     const runs = A.filter(x => x.kind === 'run' && x.post === me.post).sort((a, b) => b.t - a.t);
     const inbound = runs.filter(r => runState(A, r) !== 'received'), got = runs.filter(r => runState(A, r) === 'received').slice(0, 3);
     return `${inbound.length || got.length ? `<section class="fd-card"><h2>Restock runs</h2><ul class="care-list">${inbound.map(r => `<li>${runLine(A, r)}<button class="btn small" data-got="${esc(r.id)}" type="button">Received</button></li>`).join('')}${got.map(r => `<li class="past">${runLine(A, r)}</li>`).join('')}</ul></section>` : ''}
@@ -207,13 +210,13 @@
   };
   function startRun(to, why, flag, qty, trigger) { run = { to: to || '', why: why || '', flag: flag || {}, qty: qty || {}, driver: '', vehicle: '', eta: '', note: '', trigger: trigger || '' }; render(); const c = $('runCard'); if (c && c.scrollIntoView) c.scrollIntoView(); }
   function renderYard() {
-    const now = Date.now(), A = all(), trig = (S && S.triggers) || [];
+    const now = clk(), A = all(), trig = (S && S.triggers) || [];
     const reqs = A.filter(x => x.kind === 'request' && x.state !== 'done').sort((a, b) => a.t - b.t);
     const runs = A.filter(x => x.kind === 'run').sort((a, b) => b.t - a.t), live = runs.filter(r => !['delivered', 'received'].includes(runState(A, r))), done = runs.filter(r => ['delivered', 'received'].includes(runState(A, r))).slice(0, 6);
     const stns = PLACES.filter(p => list(p).length).map(p => {
       const x = lastStock(A, p), rep = A.filter(y => y.kind === 'report' && y.post === p).sort((a, b) => b.t - a.t)[0], open = rep && rep.type !== 'close';
       const bad = x ? Object.keys(x.levels).filter(k => ['low', 'out'].includes(x.levels[k])).length + Object.keys(x.levels).filter(k => x.levels[k] === 'out').length * 10 : 0;
-      const th = thr(p, now), sh = x ? shortOf(x, p, th).length : 0;
+      const th = thr(p), sh = x ? shortOf(x, p, th).length : 0;
       return { p, x, open, th, late: open && (!x || now - x.t > STOCK_MS + 15 * 60000), bad: bad + sh * 5 };
     }).sort((a, b) => (b.late - a.late) || (b.bad - a.bad));
     const unsent = q.length || msg ? `<p class="care-unsent">${q.length ? q.length + ' waiting to send. ' : ''}${esc(msg)}</p>` : '';
@@ -259,7 +262,7 @@
     bindCommon(); bindStock(ystk);
     $('ystkLoc').addEventListener('change', e => { ystk = { loc: e.target.value, levels: {}, counts: {} }; render(); });
     $('ystkSend').addEventListener('click', () => { if (sendStock(ystk, { loc: ystk.loc })) { say('Stocktake saved: ' + ystk.loc + '.'); ystk = { loc: ystk.loc, levels: {}, counts: {} }; render(); } });
-    box.querySelectorAll('button[data-req]').forEach(b => b.addEventListener('click', () => { add({ kind: 'reqstate', request: b.dataset.req, state: b.dataset.s }); const r = rows.find(x => x.id === b.dataset.req); if (r) Object.assign(r, { state: b.dataset.s, st_t: Date.now() }); say(b.dataset.s === 'done' ? 'Request done.' : 'Station told it\'s on its way.'); render(); }));
+    box.querySelectorAll('button[data-req]').forEach(b => b.addEventListener('click', () => { add({ kind: 'reqstate', request: b.dataset.req, state: b.dataset.s }); const r = rows.find(x => x.id === b.dataset.req); if (r) Object.assign(r, { state: b.dataset.s, st_t: clk() }); say(b.dataset.s === 'done' ? 'Request done.' : 'Station told it\'s on its way.'); render(); }));
     box.querySelectorAll('button[data-tdone]').forEach(b => b.addEventListener('click', () => { const t = S.triggers.find(x => x.id === b.dataset.tdone); add({ kind: 'trigger', trigger: t.id, name: t.name }); say(t.name + ': done.'); }));
     box.querySelectorAll('button[data-run]').forEach(b => b.addEventListener('click', () => { add({ kind: 'runstate', run: b.dataset.run, state: b.dataset.s }); say('Run ' + RUNS[b.dataset.s].toLowerCase() + '.'); }));
     box.querySelectorAll('button[data-build]').forEach(b => b.addEventListener('click', () => {
@@ -267,7 +270,7 @@
       // From a stocktake: Low and Out items, topped up to the station's planned amount. From a trigger: the station's plan.
       if (trig && S.stations[to]) Object.assign(qty, S.stations[to]);
       // Without a trigger, each Low, Out or short item gets what the runners still to come need, less what's there.
-      const th = to ? thr(to, Date.now()) : null, pct = th ? th.pct : 0;
+      const th = to ? thr(to) : null, pct = th ? th.pct : 0;
       if (x) Object.keys(x.levels).forEach(k => {
         const plan = S.stations[to] && S.stations[to][k], c = x.counts[k], nd = plan ? TH ? TH.need(plan, pct) : plan : 0, short = c != null && nd && c < nd;
         if (!['low', 'out'].includes(x.levels[k]) && !short) return;
@@ -285,7 +288,7 @@
         const items = Object.keys(run.qty).map(id => ({ id, name: nameOf(id), unit: unitOf(id), qty: parseFloat(run.qty[id]) })).filter(x => x.qty > 0);
         if (!run.to) { say('Choose the station.'); return; }
         if (!items.length) { say('Put a quantity against what\'s going.'); return; }
-        let eta = run.eta ? mel(melDay() + 'T' + run.eta) : null; if (eta && eta < Date.now() - 6 * 3600e3) eta += 24 * 3600e3;
+        let eta = run.eta ? mel(melDay() + 'T' + run.eta) : null; if (eta && eta < clk() - 6 * 3600e3) eta += 24 * 3600e3;
         add({ kind: 'run', to: run.to, items, driver: run.driver.trim(), vehicle: run.vehicle.trim(), eta, note: run.note.trim(), trigger: run.trigger });
         say('Run to ' + run.to + ' sent. The station sees it.'); run = null; render();
       });
@@ -326,7 +329,7 @@
   setInterval(async () => {
     if (document.visibilityState !== 'visible' || !me.post) return;
     // A stocktake coming due buzzes the station's phone once.
-    if (!isYard() && list(me.post).length) { const p = lastStock(all(), me.post); if (p && Date.now() > p.t + STOCK_MS && seenDue !== p.id) { seenDue = p.id; try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch (e) { } } }
+    if (!isYard() && list(me.post).length) { const p = lastStock(all(), me.post); if (p && clk() > p.t + STOCK_MS && seenDue !== p.id) { seenDue = p.id; try { navigator.vibrate && navigator.vibrate([300, 150, 300]); } catch (e) { } } }
     await flush(); await refresh();
     holds().forEach(h => { if (!seenHolds.has(h.hold)) { seenHolds.add(h.hold); try { navigator.vibrate && navigator.vibrate([500, 200, 500, 200, 500]); } catch (e) { } } });
   }, 20000);

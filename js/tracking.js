@@ -172,7 +172,8 @@
   const SPLIT_KEY = { miler: 'miler', '50k': 's1', s1: 's1', s2: 's2', s3: 's3', s4: 's4', '33k': 's4' };
   const curves = new Map();
   function curveFor(c) {
-    const k = c && SPLIT_KEY[c.raceKey], F = k && window.GPT_SPLITS && window.GPT_SPLITS[k];
+    // Any other event's splits are kept by its own race (stage) id.
+    const k = c && (SPLIT_KEY[c.raceKey] || c.raceKey), F = k && window.GPT_SPLITS && window.GPT_SPLITS[k];
     if (!F || !c.course || !c.course.main) return null;
     const id = k + '|' + c.startKm + '|' + c.finishKm;
     if (!curves.has(id)) {
@@ -352,7 +353,9 @@
       const fit = chip && chip.km <= pos.km + 0.05 ? fitDue(c, nextPt.km) : null, from = fit ? fit.from : a.t;
       const due = fit ? fit.due : a.t + legMs(E, a.km, nextPt.km, f);
       // Overdue: past the cut-off there (the Miler, from the pacing table's cut-offs), else past cut-off pace from the last read.
-      const cut = c && c.raceKey === 'miler' && model(E).cutAt ? model(E).cutAt(nextPt.km) : null;
+      // (Any other event: its race on the main course, whose cut-offs are the pacing table's.)
+      const mainRace = c && (c.raceKey === 'miler' || (window.GPTTiming && GPTTiming.generic() && E.main && c.course && c.course.main));
+      const cut = mainRace && model(E).cutAt ? model(E).cutAt(nextPt.km) : null;
       const latest = cut || a.t + legMs(E, a.km, nextPt.km, 1);
       const grace = Math.max(LATE_MIN * 60e3, (due - from) / 4), moving = !!(gps && !gps.stale && !gps.stopped);
       pos.next = { name: nextPt.name, km: nextPt.km, due, latest, late: now > due + grace && !moving, overdue: now > latest && !moving, lateMs: now - due, fitted: !!fit };

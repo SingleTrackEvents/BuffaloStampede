@@ -10,12 +10,13 @@
 (function () {
   const $ = id => document.getElementById(id), box = $('stnHqBody');
   if (!box || !window.ST || !ST.has('aid')) return;
-  const C = window.GPT100_CONFIG || {}, W = C.weather || {}, BASE = (W.refreshUrl || '').replace(/\/$/, ''), P = window.ST_COVER || {};
+  // In the practice mode (js/demo.js) it talks to the practice stand-in, never the race's database.
+  const DEMO = window.GPTDemo && GPTDemo.rcBase, C = window.GPT100_CONFIG || {}, W = C.weather || {}, BASE = (DEMO || W.refreshUrl || '').replace(/\/$/, ''), P = window.ST_COVER || {};
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const tf = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const hm = t => t ? tf.format(new Date(t)).replace(',', '') : '';
   const mel = s => s ? Date.parse(s + ':00+11:00') : null;
-  const pw = () => window.MedPlan && window.MedPlan.pw && window.MedPlan.pw();
+  const pw = () => DEMO ? 'practice' : window.MedPlan && window.MedPlan.pw && window.MedPlan.pw();
   const who = () => { try { return localStorage.getItem('st_rc_name') || ''; } catch (e) { return ''; } };
   const TH = window.STThrough || null, SK = window.ST_STOCK || null, NM = SK ? Object.fromEntries(SK.items.map(i => [i.id, i.name])) : {};
   const STATIONS = [...new Set((P.aid || []).map(s => s.name))];
@@ -42,7 +43,7 @@
   }
   // One station now: its session, last report and whether a report is overdue. Shared with the Risk tab.
   function status(post, R, t) {
-    t = t || Date.now(); R = R || rows;
+    t = t || (window.GPT && GPT.now ? GPT.now() : Date.now()); R = R || rows;
     const ses = (P.aid || []).filter(s => s.name === post).map(s => ({ a: mel(s.from), z: mel(s.to) }));
     const now = ses.find(s => s.a <= t && t < s.z), next = ses.find(s => s.a > t);
     const reps = R.filter(x => x.kind === 'report' && x.post === post).sort((a, b) => b.t - a.t), last = reps[0];
