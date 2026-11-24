@@ -6,7 +6,7 @@
 // few seconds (weak signal). Leaflet and the fonts are served with the app (lib/) and saved with each build, so nothing
 // the pages need comes from another site. Map tiles are cached as they're used; the topo map can also be saved whole
 // (js/basemap.js).
-const BUILD = '8';
+const BUILD = '12';
 const VERSION = 'st-v' + BUILD;
 const NEXT = 'st-next-v'; // + a newer build: files for its pages, fetched before that build's worker is in
 // Pages, manifests and icons, saved by their own address.
@@ -19,10 +19,16 @@ const PAGES = ['./', 'index.html', 'field.html', 'runner.html', 'map.html', 'adm
 // Scripts and styles, saved as the pages ask for them (with ?v=BUILD).
 const FILES = [
   'lib/fonts.css', 'lib/leaflet.css', 'lib/leaflet.js', 'js/live.js', 'css/app.css', 'css/field.css', 'css/runner.css', 'js/engine.js', 'js/app.js', 'js/medplan.js', 'js/weather-core.js', 'js/weather.js', 'js/rc.js', 'js/basemap.js', 'js/intro.js',
-  'js/viewport.js', 'js/races.js', 'js/profile.js', 'js/helipads.js', 'js/track.js', 'js/timing.js', 'js/tracking.js', 'js/fullscreen.js', 'js/runners.js', 'js/demo.js', 'js/map.js', 'js/field.js', 'js/runner.js', 'js/track-tab.js', 'js/heading.js', 'js/contingency.js',
-  'data/config.js', 'data/course.js', 'data/courses.js', 'data/course-w3w.js', 'data/access-edits.js', 'data/medplan.enc.js', 'data/safety-officers.js', 'data/pacing.js', 'data/splits.js', 'data/contingency.js',
-  'data/tiles.js', 'data/helipads.js', 'data/track-grades.js', 'data/demo-runners.js', 'data/races.js', 'data/runner-courses.js', 'data/runner-info.js', 'data/safety-cards.js', 'data/crew-drives.js'
+  'events/events.js', 'js/event.js', 'js/viewport.js', 'js/races.js', 'js/profile.js', 'js/helipads.js', 'js/track.js', 'js/timing.js', 'js/tracking.js', 'js/fullscreen.js', 'js/runners.js', 'js/demo.js', 'js/map.js', 'js/field.js', 'js/runner.js', 'js/track-tab.js', 'js/heading.js', 'js/contingency.js',
 ];
+// Event packs (events/<id>/): the events marked precache in events/events.js are saved whole at install, so a phone
+// works offline before anyone opens them. Any other event's files are saved the first time a page asks for them.
+const PRECACHE_EVENTS = ['buffalo-2027'];
+const EVENT_FILES = ['config.js', 'course.js', 'courses.js', 'course-w3w.js', 'access-edits.js', 'medplan.enc.js', 'register.enc.js', 'safety-officers.js',
+  'pacing.js', 'splits.js', 'contingency.js', 'tiles.js', 'helipads.js', 'track-grades.js', 'demo-runners.js', 'races.js', 'runner-courses.js',
+  'runner-info.js', 'safety-cards.js', 'crew-drives.js'];
+FILES.push(...PRECACHE_EVENTS.flatMap(id => EVENT_FILES.map(f => 'events/' + id + '/' + f)));
+PAGES.push(...PRECACHE_EVENTS.flatMap(id => ['events/' + id + '/logo.png', 'events/' + id + '/logo-light.png']));
 const SHELL = PAGES.concat(FILES.map(u => u + '?v=' + BUILD));
 const TILES = 'st-tiles';
 const OFFLINE_MAP = 'st-offline-map'; // the saved topo map (js/basemap.js); kept across updates

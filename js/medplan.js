@@ -62,7 +62,7 @@
   async function checkForNewPlan() {
     if (!ENC || !navigator.onLine || !location.protocol.startsWith('http')) return;
     try {
-      const t = await (await fetch('data/medplan.enc.js', { cache: 'no-cache' })).text();
+      const t = await (await fetch(ST.path('medplan.enc.js'), { cache: 'no-cache' })).text();
       const m = /window\.GPT100_MEDPLAN_ENC = (\{.*\});/.exec(t);
       if (!m) return;
       const next = JSON.parse(m[1]);

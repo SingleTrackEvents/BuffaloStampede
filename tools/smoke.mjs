@@ -16,7 +16,7 @@ const browser = await chromium.launch(); let bad = 0;
 for (const page of pages) {
   const ctx = await browser.newContext({ serviceWorkers: 'block' }); const pg = await ctx.newPage(); const errs = [];
   await pg.route(u => !u.href.startsWith(`http://localhost:${port}/`), r => r.abort());   // no outside calls in a smoke test
-  pg.on('pageerror', e => errs.push('error: ' + e.message));
+  pg.on('pageerror', e => errs.push('error: ' + e.message + (process.env.STACK ? '\n' + e.stack : '')));
   pg.on('console', m => { if (m.type() === 'error' && !/ERR_FAILED|Failed to load resource|net::/.test(m.text())) errs.push('console: ' + m.text()); });
   pg.on('response', r => { if (r.status() >= 400 && r.url().includes(`localhost:${port}`)) errs.push(r.status() + ' ' + r.url().replace(`http://localhost:${port}/`, '')); });
   await pg.goto(`http://localhost:${port}/${page}${ev ? '?event=' + ev : ''}`, { waitUntil: 'load' }).catch(e => errs.push('goto: ' + e.message));

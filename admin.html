@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Running Wild Admin</title>
 <link rel="icon" href="icons/icon-48.png" type="image/png">
-<link rel="stylesheet" href="lib/leaflet.css?v=8">
-<link rel="stylesheet" href="lib/fonts.css?v=8">
-<script src="lib/leaflet.js?v=8"></script>
+<link rel="stylesheet" href="lib/leaflet.css?v=12">
+<link rel="stylesheet" href="lib/fonts.css?v=12">
+<script src="lib/leaflet.js?v=12"></script>
 <style>
   :root{ --ink:#1c1c1c; --paper:#f7f5f0; --line:#dcd7cc; --hg:#c0392b; --dk:#1f6f4a; --accent:#b5651d; --muted:#6b6459; --walk:#1666c9; --jc:#1b6ca8;}
   *{box-sizing:border-box}
@@ -95,7 +95,7 @@
   <div id="map"></div>
   <div id="panel">
     <h1>Running Wild Safety: Admin</h1>
-    <p class="sub"><a href="index.html" style="color:var(--accent);font-weight:600">Back to the staff app</a>. This page is for planning and editing access points. Changes stay on this device until you press <b>Publish file</b> and replace <code>data/access-edits.js</code> in the repository.</p>
+    <p class="sub"><a href="index.html" style="color:var(--accent);font-weight:600">Back to the staff app</a>. This page is for planning and editing access points. Changes stay on this device until you press <b>Publish file</b> and replace <code>access-edits.js</code> in the event's folder (<code>events/replace <code>data/access-edits.js</code> in the repositorylt;eventreplace <code>data/access-edits.js</code> in the repositorygt;/</code>) in the repository.</p>
     <p class="sub">Click anywhere on the course. It tests every road access point within ~2 km plus the live nearest road crossing, and picks the fastest drive + trail walk-in for each base. Walk-in follows real connector tracks where mapped.</p>
     <div style="margin-bottom:12px">
       <div style="font-size:12px;color:#6b6459;margin-bottom:3px">Locate a casualty by coordinates:</div>
@@ -173,9 +173,11 @@
     </div>
   </div>
 </div>
-<script src="data/course.js?v=8"></script>
-<script src="data/access-edits.js?v=8"></script>
-<script src="data/config.js?v=8"></script>
+<script src="events/events.js?v=12"></script>
+<script src="js/event.js?v=12"></script>
+<script>ST.load('course.js')</script>
+<script>ST.load('access-edits.js')</script>
+<script>ST.load('config.js')</script>
 <script>
 const DATA = window.GPT100_DATA;
 const route=DATA.route, BASE=DATA.bases, CROSS=DATA.crossings;
@@ -262,9 +264,9 @@ function deleteAccess(a){
 }
 CROSS.forEach(c=>{const col=c.type==='road'?'#e67e22':'#3a86c8';
   const m=L.marker([c.lat,c.lon],{icon:mk(col,7),title:c.name||(c.type==='road'?'Road crossing':'Trail junction')}).addTo(map).bindPopup(`<b>${c.name||(c.type==='road'?'Road crossing':'Trail junction')}</b><br>${c.type} &bull; ${c.km} km on course`);crossMarkers.push(m);});
-L.marker([BASE.hg[1],BASE.hg[0]],{icon:mk('#c0392b',20),title:'Halls Gap base'}).addTo(map).bindPopup('<b>Halls Gap base</b>');
-L.marker([BASE.dk[1],BASE.dk[0]],{icon:mk('#1f6f4a',20),title:'Dunkeld base'}).addTo(map).bindPopup('<b>Dunkeld base</b>');
-L.marker([BASE.jc[1],BASE.jc[0]],{icon:mk('#1b6ca8',20),title:'Jimmy Creek base / aid station'}).addTo(map).bindPopup('<b>Jimmy Creek base / aid station</b>');
+// The event's response bases (config.js). The drive time tools below still assume the GPT100's three bases
+// (Halls Gap, Dunkeld, Jimmy Creek) and do nothing for other events until the setup tool replaces them.
+((window.GPT100_CONFIG||{}).bases||[]).forEach(b=>{const ll=BASE[b.key];if(ll)L.marker([ll[1],ll[0]],{icon:mk(b.color||'#c0392b',20),title:b.name+' base'}).addTo(map).bindPopup('<b>'+b.name+' base</b>');});
 let showAcc=true,showCross=true;
 rebuildAccessMarkers();
 computeDanger();
@@ -450,7 +452,7 @@ _e('fileImp').addEventListener('change',ev=>{const f=ev.target.files[0];if(!f)re
 _e('btnPublish').addEventListener('click',()=>{
   const body='// Published access point edits, shared by every staff device.\n// To update: make changes in admin.html, press "Publish file", and replace this file with the download.\n// custom: added or edited access points. hidden: built-in points removed ("name|trail_km").\nwindow.GPT100_EDITS = '+JSON.stringify({custom,hidden:[...hidden]})+';\n';
   const u=URL.createObjectURL(new Blob([body],{type:'text/javascript'}));const a=document.createElement('a');a.href=u;a.download='access-edits.js';document.body.appendChild(a);a.click();a.remove();
-  estatus('downloaded access-edits.js: replace data/access-edits.js with it to publish to staff');});
+  estatus('downloaded access-edits.js: replace events/<event>/access-edits.js with it to publish to staff');});
 _e('btnReset').addEventListener('click',()=>{if(!confirm('Throw away the edits on this device and go back to the published access points?'))return;
   try{localStorage.removeItem(LS_C);localStorage.removeItem(LS_H);}catch(e){}location.reload();});
 // ---- connector elevation (Open-Elevation) ----

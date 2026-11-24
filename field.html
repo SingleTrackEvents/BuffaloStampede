@@ -11,11 +11,11 @@
 <link rel="manifest" href="manifest-field.webmanifest">
 <link rel="icon" href="icons/icon-48.png" type="image/png" sizes="48x48">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="lib/fonts.css?v=8">
-<link rel="stylesheet" href="lib/leaflet.css?v=8">
-<link rel="stylesheet" href="css/app.css?v=8">
-<link rel="stylesheet" href="css/field.css?v=8">
-<link rel="stylesheet" href="css/runner.css?v=8">
+<link rel="stylesheet" href="lib/fonts.css?v=12">
+<link rel="stylesheet" href="lib/leaflet.css?v=12">
+<link rel="stylesheet" href="css/app.css?v=12">
+<link rel="stylesheet" href="css/field.css?v=12">
+<link rel="stylesheet" href="css/runner.css?v=12">
 </head>
 <body class="field">
 <header class="top">
@@ -137,40 +137,42 @@
 <!-- The Weather tab code supplies the weather line; it stays hidden here. -->
 <div id="wxBody" hidden></div>
 
-<script src="js/live.js?v=8"></script>
-<script src="js/viewport.js?v=8"></script>
-<script src="lib/leaflet.js?v=8"></script>
-<script src="js/heading.js?v=8"></script>
-<script src="data/config.js?v=8"></script>
-<script src="data/course.js?v=8"></script>
-<script src="data/courses.js?v=8"></script>
-<script src="data/course-w3w.js?v=8"></script>
-<script src="data/access-edits.js?v=8"></script>
-<script src="data/contingency.js?v=8"></script>
-<script src="js/engine.js?v=8"></script>
-<script src="js/contingency.js?v=8"></script>
-<script src="data/safety-officers.js?v=8"></script>
-<script src="data/tiles.js?v=8"></script>
-<script src="js/basemap.js?v=8"></script>
-<script src="js/profile.js?v=8"></script>
-<script src="data/helipads.js?v=8"></script>
-<script src="js/helipads.js?v=8"></script>
-<script src="data/track-grades.js?v=8"></script>
-<script src="js/track.js?v=8"></script>
-<script src="data/pacing.js?v=8"></script>
-<script src="data/demo-runners.js?v=8"></script>
-<script src="js/demo.js?v=8"></script>
-<script src="js/timing.js?v=8"></script>
-<script src="js/tracking.js?v=8"></script>
-<script src="js/fullscreen.js?v=8"></script>
-<script src="js/runners.js?v=8"></script>
-<script src="js/weather-core.js?v=8"></script>
-<script src="js/weather.js?v=8"></script>
-<script src="data/races.js?v=8"></script>
-<script src="data/splits.js?v=8"></script>
-<script src="data/runner-courses.js?v=8"></script>
-<script src="js/races.js?v=8"></script>
-<script src="js/intro.js?v=8"></script>
-<script src="js/field.js?v=8"></script>
+<script src="js/live.js?v=12"></script>
+<script src="js/viewport.js?v=12"></script>
+<script src="lib/leaflet.js?v=12"></script>
+<script src="js/heading.js?v=12"></script>
+<script src="events/events.js?v=12"></script>
+<script src="js/event.js?v=12"></script>
+<script>ST.load('config.js')</script>
+<script>ST.load('course.js')</script>
+<script>ST.load('courses.js')</script>
+<script>ST.load('course-w3w.js')</script>
+<script>ST.load('access-edits.js')</script>
+<script>ST.load('contingency.js')</script>
+<script src="js/engine.js?v=12"></script>
+<script src="js/contingency.js?v=12"></script>
+<script>ST.load('safety-officers.js')</script>
+<script>ST.load('tiles.js')</script>
+<script src="js/basemap.js?v=12"></script>
+<script src="js/profile.js?v=12"></script>
+<script>ST.load('helipads.js')</script>
+<script src="js/helipads.js?v=12"></script>
+<script>ST.load('track-grades.js')</script>
+<script src="js/track.js?v=12"></script>
+<script>ST.load('pacing.js')</script>
+<script>ST.load('demo-runners.js')</script>
+<script src="js/demo.js?v=12"></script>
+<script src="js/timing.js?v=12"></script>
+<script src="js/tracking.js?v=12"></script>
+<script src="js/fullscreen.js?v=12"></script>
+<script src="js/runners.js?v=12"></script>
+<script src="js/weather-core.js?v=12"></script>
+<script src="js/weather.js?v=12"></script>
+<script>ST.load('races.js')</script>
+<script>ST.load('splits.js')</script>
+<script>ST.load('runner-courses.js')</script>
+<script src="js/races.js?v=12"></script>
+<script src="js/intro.js?v=12"></script>
+<script src="js/field.js?v=12"></script>
 </body>
 </html>

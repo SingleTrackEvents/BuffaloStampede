@@ -865,7 +865,7 @@
   async function introDraw() {
     const body = $('rnIntroBody'), i = introStep, mb = Math.round(((OM && OM.bytes) || 0) / 1e6);
     let h = '';
-    if (i === 0) h = `<img class="rn-intro-logo" src="icons/logo.png" alt="GPT100 Miler">
+    if (i === 0) h = `<img class="rn-intro-logo" src="${ST.path(ST.event.logoLight || ST.event.logo)}" alt="${ST.event.name}">
       <h2 id="rnIntroTitle">Your race in your pocket</h2>
       <p>The course map, where you are, the next aid station, cut-offs, the schedule and how to get help. Once it's set up it works with no signal.</p>
       <div class="rn-mode rn-intro-mode" role="group"><button type="button" data-m="runner"${mode === 'runner' ? ' class="on"' : ''}>I'm running</button><button type="button" data-m="crew"${mode === 'crew' ? ' class="on"' : ''}>I'm crewing</button></div>

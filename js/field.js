@@ -431,7 +431,8 @@
     else count = 'Finished';
     let extra = '';
     // Safety Officers: how many stations have someone on post right now (during the event), else when shifts start.
-    if (SO) {
+    // (Not before an event has posts set up: an empty list has no first shift.)
+    if (SO && SO.posts && SO.posts.length) {
       const h = (now - soT0) / 3600e3, st = SO.stations.filter(s => SO.posts.some(p => p.station === s.name && !/passage/i.test(p.label)));
       if (h < 0) extra += `<p>Safety Officer shifts start <b>${soTime(Math.min(...SO.posts.map(p => p.a)))}</b>.</p>`;
       else if (h <= SO.n / 4) extra += `<p>Safety Officers on post now at <b>${st.filter(s => SO.posts.some(p => p.station === s.name && p.a <= h && p.z > h)).length} of ${st.length}</b> stations.</p>`;

@@ -6,7 +6,8 @@
 // with OpenTopoMap's sharper tiles on top when there's signal. (The street map can't be saved: OpenStreetMap
 // doesn't allow it.)
 (function () {
-  const KEY = 'stBase', OFFLINE = 'st-offline-map', DONE = 'stOfflineMap';
+  // Each event's saved map is its own (an event pack has its own tiles), in the one offline cache.
+  const KEY = 'stBase', OFFLINE = 'st-offline-map', DONE = 'stOfflineMap.' + ST.event.id;
   const T = window.GPT_TILES || { count: 0, bytes: 0, zmax: 15, tree: {} };
   const has = (z, x, y) => !!(T.tree[z] && T.tree[z][x] && T.tree[z][x].includes(y));
   const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
@@ -14,7 +15,7 @@
 
   // Our own copy where we have it, OpenTopoMap elsewhere.
   const Corridor = window.L && L.TileLayer.extend({
-    getTileUrl(c) { return has(c.z, c.x, c.y) ? `tiles/topo/${c.z}/${c.x}/${c.y}.png` : L.TileLayer.prototype.getTileUrl.call(this, c); }
+    getTileUrl(c) { return has(c.z, c.x, c.y) ? ST.path(`tiles/topo/${c.z}/${c.x}/${c.y}.png`) : L.TileLayer.prototype.getTileUrl.call(this, c); }
   });
 
   window.GPTBaseMap = function (map) {
@@ -53,7 +54,7 @@
   // ---------- saving the topo map on the phone ----------
   const urls = () => {
     const out = [];
-    Object.keys(T.tree).forEach(z => Object.keys(T.tree[z]).forEach(x => T.tree[z][x].forEach(y => out.push(new URL(`tiles/topo/${z}/${x}/${y}.png`, location.href).href))));
+    Object.keys(T.tree).forEach(z => Object.keys(T.tree[z]).forEach(x => T.tree[z][x].forEach(y => out.push(new URL(ST.path(`tiles/topo/${z}/${x}/${y}.png`), location.href).href))));
     return out;
   };
   const read = () => { try { return JSON.parse(localStorage.getItem(DONE)) || null; } catch (e) { return null; } };
@@ -84,6 +85,6 @@
       if (!failed) try { localStorage.setItem(DONE, JSON.stringify({ v: T.version, t: Date.now() })); } catch (e) { }
       return { failed, total: list.length };
     },
-    async clear() { await caches.delete(OFFLINE); try { localStorage.removeItem(DONE); } catch (e) { } }
+    async clear() { const c = await caches.open(OFFLINE), mine = '/' + ST.path('tiles/'); for (const r of await c.keys()) if (new URL(r.url).pathname.includes(mine)) await c.delete(r); try { localStorage.removeItem(DONE); } catch (e) { } }
   };
 })();

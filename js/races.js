@@ -54,7 +54,7 @@
   // points that don't match (a sheet point with no staffed point on the course) sit between their neighbours in proportion.
   function prepare(stage, course) {
     if (stage.ready) return stage;
-    stage.course = course; stage.ready = true;
+    stage.course = stage.course || course; stage.ready = true;  // a stage can name its own course (a slam's 10k, 100k and 42k)
     const E = engineFor(stage), P = stage.points;
     // Races without a map: place the start by name.
     if (!E) { const a = MAIN.AID.find(a => words(P[0].name).some(w => !STOP.has(w) && words(a.name).includes(w))); P.forEach(p => { p.ft = mel(p.first); p.ct = mel(p.cutoff); if (a) { p.lat = a.lat; p.lon = a.lon; } }); return stage; }

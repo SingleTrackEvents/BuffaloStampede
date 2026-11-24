@@ -388,7 +388,7 @@
   });
   let racesP = null;
   const races = () => racesP = racesP || new Promise(done => {
-    const go = () => Promise.all([load('data/races.js', () => window.GPT_RACES), load('data/splits.js', () => window.GPT_SPLITS)]).then(() => done());
+    const go = () => Promise.all([load(ST.path('races.js'), () => window.GPT_RACES), load(ST.path('splits.js'), () => window.GPT_SPLITS)]).then(() => done());
     if (document.readyState === 'loading') addEventListener('DOMContentLoaded', go); else go();
   });
   // The whole list comes each time. With the app off screen it's fetched every five minutes instead (battery and
