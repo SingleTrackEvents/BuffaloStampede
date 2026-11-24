@@ -1,0 +1,15 @@
+{
+  "name": "Running Wild Safety",
+  "short_name": "RW Safety",
+  "description": "SingleTrack Running Wild race-day safety: the Control board, the field phones and where a spot is on the course.",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./index",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#223c2c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

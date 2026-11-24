@@ -1,0 +1,536 @@
+// GPT100 Runner: the Track tab, for crews, family and friends. Follow runners live, from the GPS trackers and the
+// timing chips (js/tracking.js and js/timing.js, the same feeds the staff apps use): where each one is now, their
+// time at every checkpoint so far, when they're expected at the ones to come, and the live order of each race,
+// with a link to the timing team's official results (config.tracking.results).
+// Followed runners are kept on the phone, shown on the Map tab, and can be shared as a link (runner.html#bib=1047).
+// The Map tab also shows everyone racing, as dots coloured by race, with Follow in each one's popup.
+// The last cards are saved, so with no signal the tab still shows where they were and when.
+(function () {
+  const $ = id => document.getElementById(id);
+  if (!$('tkCards')) return;
+  const C = window.GPT100_CONFIG || {}, T = C.tracking || {}, RS = window.GPTRaces, R = RS.R;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const one = x => (Math.round(x * 10) / 10).toFixed(1);
+  const store = { get(k, d) { try { const v = localStorage.getItem('strn.' + k), p = v == null ? null : JSON.parse(v); return p == null || (d && typeof d === 'object' && (typeof p !== 'object' || Array.isArray(d) !== Array.isArray(p))) ? d : p; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem('strn.' + k, JSON.stringify(v)); } catch (e) { } } };
+  const TR = () => window.GPTTracking || null;
+  const live = () => !!(TR() && TR().ready());
+  // Every runner once (by bib: a runner the chips knew before the trackers loaded can have an older entry too).
+  const everyone = () => TR() ? [...TR().state.byBib.values()] : [];
+  const { when, hm, toRace, prepare, timeAt, livePace } = RS;
+  const at = t => when(new Date(t));
+  const clock = t => hm.format(new Date(t));
+  // Elapsed race time as h:mm.
+  const hmm = ms => { const m = Math.max(0, Math.round(ms / 60000)); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); };
+  const ago = ms => ms < 90e3 ? 'just now' : ms < 3600e3 ? Math.round(ms / 60e3) + ' min ago' : ms < 48 * 3600e3 ? (ms / 3600e3).toFixed(1) + ' h ago' : Math.round(ms / 864e5) + ' days ago';
+
+  // The timing feed's race (js/timing.js keyOf) to the stage in data/races.js with its points, km and cut-offs.
+  const STAGE_OF = { miler: 'miler', '50k': 's1', s1: 's1', s2: 's2', s3: 's3', s4: 's4', '33k': 's4', '14k': '14k', '6k': '6k' };
+  const ORDER = ['miler', '50k', 's1', 's2', 's3', 's4', '33k', '14k', '6k'];
+  const LABEL = { miler: 'GPT100 Miler', '50k': 'GPT50k', s1: 'Stage race, Stage 1', s2: 'Stage race, Stage 2', s3: 'Stage race, Stage 3', s4: 'Stage race, Stage 4', '33k': 'GPT33k', '14k': 'GPT14k', '6k': 'GPT6k' };
+  function stageFor(key) {
+    const id = STAGE_OF[key], race = id && R.races.find(r => r.stages.includes(id));
+    return race ? prepare(R.stages[id], race.course) : null;
+  }
+  // The runner app's race picked at the top, as a timing feed race (for the Results list to open on).
+  const myKey = () => { const r = window.GPTRunner && GPTRunner.race(), s = window.GPTRunner && GPTRunner.stage(); return !r ? 'miler' : r.id === 'stage' ? (s ? s.id : 's1') : r.id; };
+
+  // ---------- one runner, from both feeds ----------
+  const info = bib => { const tr = TR(); return infoOf(tr && tr.byBib(bib)); };
+  function infoOf(r) {
+    if (!r) return null;
+    // A tracker the chips don't know: its GPS event's race, when the event carries just one (config tracking.gpsRaces).
+    const F = !r.chip && r.feed && T.gpsRaces && T.gpsRaces[r.feed], only = Array.isArray(F) && F.length === 1 && STAGE_OF[F[0]] ? F[0] : '';
+    const c = r.chip || null, key = c ? c.raceKey : only, S = key ? stageFor(key) : null;
+    const name = c ? (c.person || c.name.replace(/\s*\([^)]*\)$/, '')) : r.name || '';
+    return { r, c, key, S, bib: r.bib, name, gender: c ? c.gender : '', label: key ? LABEL[key] || (c ? c.raceLabel : '') : '' };
+  }
+  const raceKm = (o, km) => o.S ? Math.max(0, toRace(o.S, km)) : km;
+  const lenOf = o => o.S ? o.S.points[o.S.points.length - 1].km : o.c ? o.c.finishKm - o.c.startKm : null;
+  // When the runner started: their Start read, else the gun.
+  function startT(o) {
+    const st = o.c && o.c.reads.find(x => /^start/i.test(x.name));
+    return st ? st.t : o.S ? o.S.points[0].ft.getTime() : null;
+  }
+  const finishRead = o => o.c && o.c.status === 'finished' ? o.c.reads[o.c.reads.length - 1] : null;
+  // No longer shown as racing: a tracker that isn't on its runner's own race (back at the village, on the shuttle),
+  // nothing heard from the tracker or the chips for 12 hours, or their race's final cut-off more than 3 hours gone.
+  // After the 2026 race the trackers went back to Halls Gap still switched on, and the app drew their runners on the
+  // course for days. The cut-off rule is for the real race only: a rehearsal feed or the demo can run on any day.
+  const REHEARSAL = !!(window.GPTDemo && GPTDemo.on) || /[?&](gps|chip)=/.test(location.search);
+  function gone(o) {
+    const p = o.r.pos, now = Date.now();
+    if (!p || (o.c && o.c.status)) return '';
+    const heard = Math.max(p.t || 0, p.gpsT || 0, o.c && o.c.last ? o.c.last.t : 0);
+    const P = o.S && o.S.points, end = P && P[P.length - 1].ct;
+    if (!REHEARSAL && end && now > end.getTime() + 3 * 3600e3) return 'Race over';
+    if (p.away) return p.away === 'before' ? 'Not on the course yet' : 'Off the course';
+    return now - heard > 12 * 3600e3 ? 'No recent position' : '';
+  }
+  const DONE = { finished: 'Finished', dnf: 'Withdrew', dns: 'Did not start', dsq: 'Disqualified', 'cut off': 'Missed a cut-off' };
+  function state(o) {
+    const p = o.r.pos, now = Date.now(), st = o.c && o.c.status;
+    if (st) return { k: st === 'finished' ? 'fin' : 'out', text: DONE[st] || st };
+    if (!p) return { k: 'pre', text: o.S && now < o.S.points[0].ft.getTime() ? 'Not started yet' : 'No position yet' };
+    const g = gone(o);
+    if (g) return { k: 'gone', text: g };
+    return { k: 'on', text: 'On course' };
+  }
+  // How the position was worked out, in plain words.
+  function source(p) {
+    let s = p.src === 'chip' ? `Timing chip at ${esc(p.chipAt.name)}, ${clock(p.chipAt.t)} (${ago(p.ageMs)})` : `GPS tracker, ${ago(p.ageMs)}`;
+    if (p.src === 'gps' && p.offM > 150) s += `, ${p.offM >= 950 ? one(p.offM / 1000) + ' km' : Math.round(p.offM / 10) * 10 + ' m'} off the course`;
+    return s;
+  }
+  // Expected times at the points to come, at the pace they've run so far (js/races.js, as on the Aid tab).
+  function etas(o) {
+    const p = o.r.pos, S = o.S;
+    if (!p || !S || o.c && o.c.status || gone(o)) return null;
+    const rk = raceKm(o, p.km), L = livePace(S, rk, p.t);
+    if (L && !L.early && !L.behind) return { p: L.p, at: k => timeAt(S, k.km, L.p) };
+    // Too early to tell their pace: only the next timing point, from the tracking's own estimate.
+    if (p.next) return { p: null, at: k => Math.abs(k.gk - p.next.km) < 0.3 ? p.next.due : null };
+    return null;
+  }
+  // The reads at a race point: arrival, and leaving where the aid station has an Out mat.
+  function readsAt(o, k) {
+    if (!o.c) return {};
+    const rs = o.c.reads.filter(x => Math.abs(x.km - k.gk) < 0.4);
+    return { in: rs.find(x => !/\(out\)$/.test(x.name)) || null, out: rs.find(x => /\(out\)$/.test(x.name)) || null };
+  }
+
+  // The runner's age category, when the timing list has one ("M 60 to 69").
+  const age = o => { const tr = TR(), a = tr && tr.ageOf ? tr.ageOf(o.r) : ''; return a ? ' · ' + esc(a) : ''; };
+  // How far a runner is from you along the course, with the climb between you and when they'd reach you (js/tracking.js;
+  // the Map tab's ◎ says where you are). The time comes from their splits so far, where there's a pace to go by.
+  const ME_HINT = 'Tap ◎ on the map to see how far they are from you.';
+  function meLine(o, hint) {
+    const tr = TR(); if (!tr || !tr.meLine || !o.r.pos) return '';
+    const m = tr.fromMe(o.r), E = m && m.dir === 'coming' && o.S ? etas(o) : null;
+    return tr.meLine(o.r, { eta: E && E.p != null ? timeAt(o.S, toRace(o.S, m.myKm), E.p) : undefined, hint: hint === false ? '' : ME_HINT });
+  }
+  // The next point on their race, how far it is and when they're expected: "Next: Halls Gap in 4.2 km, about Fri 14:35".
+  function nextLine(o) {
+    const p = o.r.pos, S = o.S;
+    if (!p || !S || o.c && o.c.status || gone(o)) return '';
+    const km = TR().cur(o.r), nx = S.points.find(k => k.gk > km + 0.1), E = nx && etas(o), tn = E && E.at(nx);
+    return nx ? `Next: <b>${esc(nx.name)}</b> in ${one(Math.max(0, nx.gk - km))} km${tn ? `, about ${at(tn)}` : ''}` : '';
+  }
+
+  // ---------- following ----------
+  let follow = store.get('follow', []).map(String);
+  const isOn = bib => follow.includes(String(bib));
+  function toggle(bib) {
+    bib = String(bib);
+    follow = isOn(bib) ? follow.filter(b => b !== bib) : follow.concat(bib);
+    store.set('follow', follow);
+    draw(); alerts(true); told();
+  }
+  // The Crew tab picks its runner from the followed ones, and takes their live pace from here.
+  const told = () => { try { window.dispatchEvent(new Event('rn-follow')); } catch (e) { } };
+  window.GPTTrackTab = { follow: () => follow.slice(), info: bib => info(bib), etas: o => etas(o), readsAt: (o, k) => readsAt(o, k) };
+  // Alerts (js/live.js): a notification when a followed runner reaches a checkpoint. The Worker is told who's
+  // followed whenever the list changes.
+  const LV = window.GPTLive;
+  function alerts(changed) {
+    if (!LV) return;
+    if (changed) LV.push.setBibs(follow.slice(0, 30));
+    LV.push.row($('tkAlerts'), () => follow);
+  }
+  if (LV) LV.onChange(() => alerts());
+  let open = store.get('trackOpen', {});
+
+  // ---------- the cards ----------
+  // first: the first card on the tab, which carries the hint about ◎ until the app knows where you are.
+  function card(o, first) {
+    const p = o.r.pos, s = state(o), S = o.S, now = Date.now(), len = lenOf(o), t0 = startT(o), E = etas(o), fr = finishRead(o);
+    let h = `<div class="tk-head"><div><p class="tk-name">${esc(o.name || 'Bib ' + o.bib)}</p><p class="tk-sub">Bib ${esc(o.bib)}${o.label ? ' · ' + esc(o.label) : ''}${age(o)}</p></div><span class="tk-pill ${s.k}">${esc(s.text)}</span></div>`;
+    const pl = places(o), placeLine = pl ? `<p class="tk-line tk-place">${fr ? 'Finished' : 'Running'} <b>${nth(pl.n)}</b> of ${pl.of}${pl.g ? ` · ${nth(pl.g)} ${o.gender === 'F' ? 'woman' : 'man'}` : ''}${pl.a ? ` · ${nth(pl.a)} in ${esc(o.gender + ' ' + o.c.age)}` : ''} <small>live order</small></p>` : '';
+    if (fr && t0) h += `<p class="tk-big">${hmm(fr.t - t0)}</p><p class="tk-line">Crossed the finish ${at(fr.t)}.</p>${placeLine}`;
+    else if (s.k === 'out') h += `<p class="tk-line">${p && p.chipAt ? `Last read at ${esc(p.chipAt.name)}, ${at(p.chipAt.t)}.` : ''}</p>`;
+    // Not racing as far as the app can tell (their race is over, the tracker is off their race, or nothing for hours):
+    // where they were last heard from, and no guesses.
+    else if (s.k === 'gone') h += `<p class="tk-line">${s.text === 'Race over' ? 'Their race has finished. The official results have their time.' : p.away ? 'Their tracker isn\'t on their race\'s part of the course.' : 'Nothing from their tracker or the timing chips for a while.'}</p><p class="tk-src">Last heard: ${source(p)}${p.chipAt && p.src !== 'chip' ? `. Last timing chip at ${esc(p.chipAt.name)}, ${at(p.chipAt.t)}` : ''}</p>`;
+    else if (p) {
+      const km = TR().cur(o.r), rk = raceKm(o, km);
+      h += `<p class="tk-big">km ${one(rk)}${len ? `<small> of ${one(len)}</small>` : ''}</p>`;
+      if (p.est) h += `<p class="tk-line">${p.est.capped ? `Somewhere between km ${one(raceKm(o, p.est.fromKm))} and ${esc(p.est.to)}, at their pace` : 'Likely about here now, at their pace'}.</p>`;
+      const ml = meLine(o, !!first);
+      if (ml) h += `<p class="tk-line tk-me">${ml}</p>`;
+      h += `<p class="tk-src">Last fix: ${source(p)}</p>`;
+      if (t0 && now > t0) h += `<p class="tk-line">Running for ${hmm(now - t0)}.</p>`;
+      h += placeLine;
+      const leg = lastLeg(o);
+      if (leg) h += `<p class="tk-line">${leg}</p>`;
+      // Next point, the next cut-off with the time in hand, and the finish.
+      if (S && E) {
+        const P = S.points, nx = P.find(k => k.gk > km + 0.1), fin = P[P.length - 1];
+        const tn = nx && E.at(nx), tf = E.p != null ? E.at(fin) : null;
+        if (nx && tn) h += `<p class="tk-line">Next: <b>${esc(nx.name)}</b> (km ${one(nx.km)}), ${one(Math.max(0, nx.gk - km))} km to go, expected about <b>${at(tn)}</b>.</p>`;
+        // (Not once that cut-off is hours gone: the demo race runs on today's clock, long after the real ones.)
+        const ck = P.find(k => k.gk > km + 0.1 && k.ct && !k.noCut && k.ct.getTime() > now - 6 * 3600e3), tc = ck && E.at(ck);
+        if (ck && tc) { const d = ck.ct.getTime() - tc; h += d >= 0 ? `<p class="tk-line">Cut-off at ${esc(ck.name)} is ${at(ck.ct)}: about <b>${hmm(d)} in hand</b> at this pace.</p>` : `<p class="tk-line tk-late">Cut-off at ${esc(ck.name)} is ${at(ck.ct)}: at this pace about <b>${hmm(-d)} after it</b>.</p>`; }
+        if (tf && nx !== fin) h += `<p class="tk-line">Finish about <b>${at(tf)}</b>, a time of about ${hmm(tf - t0)}.</p>`;
+      }
+    } else if (S) h += `<p class="tk-line">Starts ${at(S.points[0].ft)} at ${esc(S.points[0].name)}.</p>`;
+    // Splits: every aid station and timing point, with the time they reached it, or when they're expected.
+    if (S) {
+      const op = !!open[o.bib], P = S.points;
+      h += `<button type="button" class="fd-linkbtn tk-more" data-open="${esc(o.bib)}" aria-expanded="${op}">${op ? 'Hide splits' : 'Splits and cut-offs'}</button>`;
+      if (op) {
+        let last = t0, rows = '';
+        P.forEach((k, i) => {
+          const rd = i === 0 ? { in: t0 ? { t: t0 } : null } : readsAt(o, k), a = rd.in || rd.out;
+          let time = '', sub = '';
+          if (a) {
+            time = `<b>${clock(a.t)}</b>`;
+            sub = i && t0 ? `${hmm(a.t - t0)}${last && i > 1 ? ` · leg ${hmm(a.t - last)}` : ''}` : '';
+            if (rd.out && rd.in) sub += `${sub ? ' · ' : ''}left ${clock(rd.out.t)}`;
+            last = (rd.out || a).t;
+          } else if (E && !(o.c && o.c.status)) {
+            const t = E.at(k);
+            if (t && t > now - 30 * 60e3) time = `<span class="tk-exp">about ${clock(t)}</span>`;
+          }
+          const cut = k.ct && i && !k.noCut ? clock(k.ct) : '';
+          rows += `<tr class="${a ? 'done' : ''}"><td>${esc(k.name)}<small>km ${one(k.km)}</small></td><td>${time || '<span class="muted">–</span>'}${sub ? `<small>${sub}</small>` : ''}</td><td>${cut}</td></tr>`;
+        });
+        h += `<table class="tk-splits"><thead><tr><th>Checkpoint</th><th>Time</th><th>Cut-off</th></tr></thead><tbody>${rows}</tbody></table>
+          <p class="fd-hint">Times are from the timing chips, as they come in. Points without a timing mat show their expected time only. Expected times are a guide, from the pace they've run so far.</p>`;
+      }
+    }
+    h += `<div class="tk-btns">${p && !(o.c && o.c.status === 'dns') && s.k !== 'gone' ? `<button type="button" class="btn small" data-map="${esc(o.bib)}">Show on map</button>` : ''}<button type="button" class="btn small" data-share="${esc(o.bib)}">Share</button><button type="button" class="btn small tk-off" data-follow="${esc(o.bib)}">Unfollow</button></div>`;
+    return `<section class="fd-card tk-card" data-bib="${esc(o.bib)}">${h}</section>`;
+  }
+
+  // ---------- search ----------
+  function hits(q) {
+    q = q.trim().toLowerCase().replace(/^#|^bib\s*/, '');
+    if (!q || !TR()) return [];
+    const all = everyone().filter(r => r.bib);
+    const num = /^\d+$/.test(q);
+    return all.filter(r => num ? r.bib.startsWith(q) : (r.name || '').toLowerCase().includes(q))
+      .sort((a, b) => num ? (a.bib === q ? -1 : b.bib === q ? 1 : a.bib.length - b.bib.length || +a.bib - +b.bib) : (a.name || '').localeCompare(b.name || ''))
+      .slice(0, 8).map(r => info(r.bib)).filter(Boolean);
+  }
+  function drawHits() {
+    const q = $('tkFind').value, hs = hits(q);
+    $('tkHits').innerHTML = !q.trim() ? '' : hs.length ? hs.map(o => `<div class="tk-hit"><span><b>${esc(o.bib)}</b> ${esc(o.name)}<small>${esc(o.label || '')}${o.label ? ' · ' : ''}${esc(state(o).text)}${age(o)}</small></span>${star(o.bib)}</div>`).join('')
+      : `<p class="muted">${live() ? 'No runner with that bib or name.' : 'The runner list loads once live tracking is on.'}</p>`;
+  }
+  const star = bib => `<button type="button" class="btn small${isOn(bib) ? ' tk-off' : ''}" data-follow="${esc(bib)}">${isOn(bib) ? 'Following' : 'Follow'}</button>`;
+  $('tkFind').addEventListener('input', drawHits);
+
+  // ---------- results: the live order of a race ----------
+  let gFilter = '', aFilter = '', raceSel = null, showAll = false;
+  const TOP = 25;
+  // g: 'F' or 'M', a: an age category as the timing list gives it ("40 to 49"); empty for everyone.
+  function order(key, g, a) {
+    const tr = TR(); if (!tr) return [];
+    const rs = everyone().filter(r => r.chip && r.chip.raceKey === key).map(r => info(r.bib)).filter(o => o && (!g || o.gender === g) && (!a || o.c.age === a));
+    const rank = o => { const st = o.c.status; return st === 'finished' ? 0 : !st && o.r.pos && !gone(o) ? 1 : !st ? 2 : st === 'dns' ? 4 : 3; };
+    return rs.sort((a, b) => {
+      const ra = rank(a), rb = rank(b);
+      if (ra !== rb) return ra - rb;
+      if (ra === 0) return (finishRead(a).t - startT(a)) - (finishRead(b).t - startT(b));
+      if (ra === 1) { const ka = tr.cur(a.r), kb = tr.cur(b.r); return Math.abs(kb - ka) > 0.05 ? kb - ka : (a.c.last ? a.c.last.t : 9e15) - (b.c.last ? b.c.last.t : 9e15); }
+      return +a.bib - +b.bib;
+    });
+  }
+  // A runner's live place in their race: overall, among the women or men, and in their age category. The same
+  // order as Results (finishers by time, then by how far along), worked out once for each update of the feeds.
+  let placeMemo = { at: -1, by: {} };
+  function ranked(key) {
+    const tr = TR(), TC = window.GPTTiming, stamp = [tr ? tr.state.updated || 0 : 0, TC && TC.state ? TC.state.updated || 0 : 0, Math.floor(Date.now() / 30e3)].join();
+    if (placeMemo.at !== stamp) placeMemo = { at: stamp, by: {} };
+    return placeMemo.by[key] || (placeMemo.by[key] = order(key, '', '').filter(o => o.c.status === 'finished' || (!o.c.status && o.r.pos && !gone(o))));
+  }
+  function places(o) {
+    if (!o.c || !o.key) return null;
+    const L = ranked(o.key), i = L.findIndex(x => x.bib === o.bib);
+    if (i < 0 || L.length < 2) return null;
+    const g = o.gender === 'F' || o.gender === 'M' ? L.filter(x => x.gender === o.gender) : null, a = g && o.c.age ? g.filter(x => x.c.age === o.c.age) : null;
+    return { n: i + 1, of: L.length, g: g && g.length < L.length ? g.findIndex(x => x.bib === o.bib) + 1 : 0, a: a && a.length < g.length ? a.findIndex(x => x.bib === o.bib) + 1 : 0 };
+  }
+  const nth = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th');
+  // The last leg they ran between two timing mats: how far, how long and the pace. Where an aid station has an In
+  // and an Out mat, the leg runs from leaving one to arriving at the next.
+  function lastLeg(o) {
+    const rs = o.c ? o.c.reads : [];
+    let j = rs.length - 1;
+    if (j > 0 && /\(out\)$/.test(rs[j].name) && Math.abs(rs[j].km - rs[j - 1].km) < 0.4) j--;
+    const b = rs[j]; let a = null;
+    for (let i = j - 1; i >= 0; i--) if (b.km - rs[i].km > 0.5) { a = rs[i]; break; }
+    if (!a || b.t <= a.t) return '';
+    const dk = b.km - a.km, dt = b.t - a.t, sec = Math.round(dt / 1000 / dk);
+    return `Last leg: ${esc(a.name.replace(/\s*\(out\)$/, ''))} to ${esc(b.name)}, ${one(dk)} km in <b>${hmm(dt)}</b> (${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')} a km).`;
+  }
+  // Age categories in a race, youngest first, for the Results filter.
+  const ageNum = a => { const m = /\d+/.exec(a); return m ? +m[0] - (/^under/i.test(a) ? 1 : 0) : 999; };
+  const agesIn = key => [...new Set(everyone().filter(r => r.chip && r.chip.raceKey === key && r.chip.age).map(r => r.chip.age))].sort((x, y) => ageNum(x) - ageNum(y) || x.localeCompare(y));
+  function drawOrder() {
+    const tr = TR(), keys = tr ? ORDER.filter(k => everyone().some(r => r.chip && r.chip.raceKey === k)) : [];
+    const sel = $('tkRace');
+    if (!keys.length) { sel.hidden = true; document.querySelector('.tk-filter').hidden = true; $('tkOrder').innerHTML = `<p class="muted">${live() ? 'No timing results yet.' : 'The live order shows here once the timing chips are on, on race day.'}</p>`; return; }
+    sel.hidden = false;
+    const want = raceSel && keys.includes(raceSel) ? raceSel : keys.includes(myKey()) ? myKey() : keys[0];
+    if (sel.dataset.keys !== keys.join()) { sel.innerHTML = keys.map(k => `<option value="${k}">${esc(LABEL[k] || k)}</option>`).join(''); sel.dataset.keys = keys.join(); }
+    sel.value = want;
+    // Age categories, when the timing list has them: the picked one is kept while that race still has it.
+    const ages = agesIn(want), asel = $('tkAge');
+    if (asel) {
+      if (!ages.includes(aFilter)) aFilter = '';
+      if (asel.dataset.k !== want + '|' + ages.join()) { asel.dataset.k = want + '|' + ages.join(); asel.innerHTML = '<option value="">All ages</option>' + ages.map(a => `<option value="${esc(a)}">${esc(a)}</option>`).join(''); }
+      asel.value = aFilter; asel.hidden = !ages.length;
+    }
+    const all = order(want, gFilter, aFilter), gend = everyone().some(r => r.chip && r.chip.gender);
+    document.querySelector('.tk-filter').hidden = !gend;
+    let n = 0;
+    const rows = all.map(o => {
+      const st = o.c.status, fr = finishRead(o), t0 = startT(o), p = o.r.pos;
+      let place = '', right = '', mid = '';
+      if (st === 'finished') { place = ++n; right = `<b>${t0 ? hmm(fr.t - t0) : clock(fr.t)}</b>`; mid = 'Finished'; }
+      else if (!st && p && !gone(o)) { place = ++n; const rk = raceKm(o, tr.cur(o.r)); right = `km ${one(rk)}`; mid = o.c.last ? `${esc(o.c.last.name)} ${clock(o.c.last.t)}` : p.src === 'gps' ? 'GPS' : ''; }
+      else { right = `<span class="muted">${esc(st ? DONE[st] || st : p && gone(o) ? gone(o) : 'Not started')}</span>`; mid = st && o.c.last ? `Last read ${esc(o.c.last.name)}` : ''; }
+      return `<div class="tk-row${isOn(o.bib) ? ' on' : ''}"><span class="tk-pl">${place}</span><button type="button" class="tk-who" data-pick="${esc(o.bib)}"><b>${esc(o.name)}</b><small>Bib ${esc(o.bib)}${mid ? ' · ' + mid : ''}</small></button><span class="tk-r">${right}</span></div>`;
+    });
+    // The top of the field, plus anyone followed further down; Show all for the rest.
+    const shown = showAll ? rows : rows.filter((x, i) => i < TOP || isOn(all[i].bib));
+    const by = T.credit && T.credit.name ? ` Timing by ${T.credit.url ? `<a href="${esc(T.credit.url)}" target="_blank" rel="noopener">${esc(T.credit.name)}</a>` : esc(T.credit.name)}.` : '';
+    const of = [gFilter === 'F' ? 'women' : gFilter === 'M' ? 'men' : '', aFilter].filter(Boolean).join(', ');
+    $('tkOrder').innerHTML = `<p class="fd-hint">Live order from the timing chips${of ? ` (${esc(of)})` : ''}: finishers by time, then runners on course by how far along they are. Tap a name to follow them.${by}</p>` + (rows.length ? shown.join('') : '<p class="muted">Nobody in that group yet.</p>') +
+      (rows.length > shown.length ? `<button type="button" class="btn small tk-all" data-all="1">Show all ${rows.length}</button>` : showAll && rows.length > TOP ? `<button type="button" class="btn small tk-all" data-all="0">Show the top ${TOP}</button>` : '');
+  }
+  $('tkRace').addEventListener('change', () => { raceSel = $('tkRace').value; showAll = false; drawOrder(); });
+  if ($('tkAge')) $('tkAge').addEventListener('change', () => { aFilter = $('tkAge').value; showAll = false; drawOrder(); });
+  document.querySelectorAll('.tk-filter button').forEach(b => b.addEventListener('click', () => {
+    gFilter = b.dataset.g; document.querySelectorAll('.tk-filter button').forEach(x => x.classList.toggle('on', x === b)); drawOrder();
+  }));
+
+  // ---------- the whole tab ----------
+  function drawStatus() {
+    const tr = TR(), credit = T.credit && T.credit.name ? ` Timing and tracking by ${T.credit.url ? `<a href="${esc(T.credit.url)}" target="_blank" rel="noopener">${esc(T.credit.name)}</a>` : esc(T.credit.name)}.` : '';
+    let s;
+    if (!tr) s = 'Live tracking starts on race day. Search for a runner by bib or name here once it\'s on.';
+    else if (!tr.ready()) s = navigator.onLine ? 'Loading live tracking…' : 'No signal: showing what was saved last.';
+    else { const S = tr.state; s = `Live from the GPS trackers and timing chips${S.updated ? `, updated ${ago(Date.now() - S.updated)}` : ''}.${navigator.onLine ? '' : ' No signal right now.'}`; }
+    $('tkStatus').innerHTML = s + credit;
+    $('tkOfficial').innerHTML = (T.results ? `<a class="btn" href="${esc(T.results)}" target="_blank" rel="noopener">Official results</a> ` : '') +
+      (T.url ? `<a class="btn" href="${esc(T.url)}" target="_blank" rel="noopener">${esc(T.label || 'Live tracking')}</a>` : '') +
+      (T.results ? '<span class="fd-hint tk-offnote">The official results are the timing team\'s. The order below is live and may change.</span>' : '');
+    $('tkOfficial').hidden = !T.results && !T.url;
+  }
+  function drawCards() {
+    const saved = store.get('trackSaved', {});
+    if (!follow.length) { $('tkCards').innerHTML = '<section class="fd-card"><p class="muted">Follow runners to see where they are, their time at each checkpoint and when they\'re expected next. Search above, or tap a name in the results.</p></section>'; return; }
+    const out = [];
+    let changed = false;
+    follow.forEach(bib => {
+      const o = live() ? info(bib) : null;
+      // Saved without the from-you line: that's only true while you're standing there.
+      if (o) { const html = card(o, !out.length); out.push(html); saved[bib] = { t: Date.now(), html: html.replace(/<p class="tk-line tk-me">.*?<\/p>/, '') }; changed = true; }
+      else if (saved[bib]) out.push(saved[bib].html.replace('<div class="tk-head">', `<p class="tk-saved">Saved ${at(saved[bib].t)}: no live update since.</p><div class="tk-head">`));
+      else out.push(`<section class="fd-card tk-card"><div class="tk-head"><div><p class="tk-name">Bib ${esc(bib)}</p><p class="tk-sub">${live() ? 'Not in the tracking or timing lists.' : 'Waiting for live tracking.'}</p></div></div><div class="tk-btns"><button type="button" class="btn small tk-off" data-follow="${esc(bib)}">Unfollow</button></div></section>`);
+    });
+    Object.keys(saved).forEach(b => { if (!isOn(b)) { delete saved[b]; changed = true; } });
+    if (changed) store.set('trackSaved', saved);
+    $('tkCards').innerHTML = out.join('');
+  }
+  function draw() {
+    drawStatus(); drawCards(); drawHits(); drawOrder(); drawMap();
+  }
+  const onTab = () => window.GPTRunner && GPTRunner.tab() === 'track' && !document.hidden;
+
+  // One click handler for the whole tab.
+  $('tkCards').parentElement.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.follow) toggle(b.dataset.follow);
+    else if (b.dataset.pick) { if (!isOn(b.dataset.pick)) toggle(b.dataset.pick); scrollTo({ top: 0, behavior: 'smooth' }); }
+    else if (b.dataset.open) { open[b.dataset.open] = !open[b.dataset.open]; store.set('trackOpen', open); drawCards(); }
+    else if (b.dataset.map) showOnMap(b.dataset.map);
+    else if (b.dataset.all) { showAll = b.dataset.all === '1'; drawOrder(); }
+    else if (b.dataset.share) share(b.dataset.share, b);
+  });
+  function share(bib, b) {
+    const o = live() ? info(bib) : null, url = location.origin + location.pathname + '#bib=' + encodeURIComponent(bib);
+    const text = `Follow ${o && o.name ? o.name : 'bib ' + bib}${o && o.label ? ' in the ' + o.label : ''} live`;
+    if (navigator.share) navigator.share({ title: 'GPT100 live tracking', text, url }).catch(() => { });
+    else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { b.textContent = 'Link copied'; setTimeout(() => { b.textContent = 'Share'; }, 2500); }, () => prompt('Copy this link', url));
+    else prompt('Copy this link', url);
+  }
+
+  // ---------- everyone racing on the Map tab ----------
+  // Every runner on course, coloured by race, under the followed runners' bib markers: their bib number once zoomed
+  // in, a small dot on the whole course. Tap one for their name, race and km, and to follow them. The Everyone button
+  // turns them off, the Races button opens the key, and the key hides or shows a race; all remembered on the phone.
+  // Only where runners are: the staff apps' flags (not moving, late) aren't shown here.
+  const GROUPS = [
+    { id: 'miler', label: 'Miler', color: '#1666c9', keys: ['miler'] },
+    { id: '50k', label: '50k', color: '#7b3fb0', keys: ['50k'] },
+    { id: 'stage', label: 'Stage race', color: '#128c4a', keys: ['s1', 's2', 's3', 's4'] },
+    { id: '33k', label: '33k', color: '#c2185b', keys: ['33k'] },
+    { id: 'short', label: '14k and 6k', color: '#b87700', keys: ['14k', '6k'] },
+    { id: 'other', label: 'Other', color: '#6b6b6b', keys: [] }
+  ];
+  const groupOf = o => GROUPS.find(g => g.keys.includes(o.key)) || GROUPS[GROUPS.length - 1];
+  let everyOn = store.get('everyone', true) !== false, hidden = store.get('everyHide', []);
+  let keyOpen = store.get('everyKey', false) === true;  // the race key folds behind its Races button, to keep the map clear
+  let everyLayer = null, everyCtl = null, everyZoom = false;
+  const BIB_ZOOM = 12;  // from this zoom in, bib numbers instead of dots
+  function everyControl(m) {
+    everyCtl = L.control({ position: 'bottomleft' });  // the empty corner: zoom and layers are at the top
+    everyCtl.onAdd = () => {
+      const d = L.DomUtil.create('div', 'tk-every');
+      L.DomEvent.disableClickPropagation(d); L.DomEvent.disableScrollPropagation(d);
+      d.addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.every) { everyOn = !everyOn; store.set('everyone', everyOn); }
+        else if (b.dataset.keyopen) { keyOpen = !keyOpen; store.set('everyKey', keyOpen); }
+        else if (b.dataset.g) { const g = b.dataset.g; hidden = hidden.includes(g) ? hidden.filter(x => x !== g) : hidden.concat(g); store.set('everyHide', hidden); }
+        drawMap();
+      });
+      return d;
+    };
+    everyCtl.addTo(m);
+  }
+  // Markers are kept between refreshes and moved in place. Clearing and redrawing them all every few seconds made the
+  // map flicker, could break a pinch or drag under way, and reopened any popup, which panned the map back to it.
+  // An open popup only pans the map when it opens; after that it follows its runner without moving the map.
+  // items: { id, ll, kind (a new marker when it changes), look (restyle(mk) when it changes), make(), restyle, html() }.
+  // html() is only run for a popup that's open (when it opens, and on each refresh while it stays open), so a few
+  // hundred runners cost nothing until one is tapped.
+  // On a phone a tap opens the runner sheet at the foot of the map card instead of a popup (js/tracking.js sheet()).
+  let SH = null;
+  const sheetOn = () => !!(SH && SH.narrow());
+  const openSheet = (marks, id) => SH.open(id, () => { const e = marks.get(id); return e ? e.html() : ''; });
+  function sync(marks, lg, items) {
+    const seen = new Set(), sh = sheetOn();
+    for (const it of items) {
+      seen.add(it.id);
+      const kind = it.kind + (sh ? ' sheet' : '');
+      let e = marks.get(it.id);
+      if (e && e.kind !== kind) { lg.removeLayer(e.mk); marks.delete(it.id); e = null; }
+      if (!e) {
+        const mk = it.make(), ne = { mk, kind, look: it.look, html: it.html, shown: '', ll: it.ll };
+        if (sh) mk.on('click', () => openSheet(marks, it.id));
+        else {
+          mk.bindPopup(() => (ne.shown = ne.html()), { autoPan: true, maxWidth: 290 });
+          mk.on('popupopen', ev => { ev.popup.options.autoPan = false; }).on('popupclose', ev => { ev.popup.options.autoPan = true; });
+        }
+        mk.addTo(lg); marks.set(it.id, ne);
+        continue;
+      }
+      if (e.ll[0] !== it.ll[0] || e.ll[1] !== it.ll[1]) { e.mk.setLatLng(it.ll); e.ll = it.ll; }
+      if (e.look !== it.look) { it.restyle(e.mk); e.look = it.look; }
+      e.html = it.html;
+      if (e.mk.isPopupOpen() && e.html() !== e.shown) e.mk.getPopup().update();
+    }
+    for (const [id, e] of marks) if (!seen.has(id)) { lg.removeLayer(e.mk); marks.delete(id); }
+  }
+  // What a tap on a runner shows: who they are, their race km, how far they are from you, the next point and the fix.
+  function popHTML(o, extra) {
+    const p = o.r.pos, km = TR().cur(o.r), ml = meLine(o), nl = nextLine(o), fin = o.c && o.c.status === 'finished';
+    return `<b>${esc(o.name || 'Bib ' + o.bib)}</b><br>Bib ${esc(o.bib)}${o.label ? ' · ' + esc(o.label) : ''}${age(o)}<br>${fin ? 'Finished' : `km ${one(raceKm(o, km))}${p.est ? ' (likely, at their pace)' : ''}`}` +
+      (ml && !fin ? '<br>' + ml : '') + (nl ? '<br>' + nl : '') + `<br><span class="muted">${source(p)}</span>` + (extra || '');
+  }
+  const everyMarks = new Map(), folMarks = new Map();
+  const bibIcon = (bib, c, faint, sel) => L.divIcon({ className: '', html: `<div class="trk-mk tk-ev${faint ? ' est' : ''}${sel ? ' sel' : ''}" style="--c:${c}">${esc(bib)}</div>`, iconSize: [30, 18], iconAnchor: [15, 9] });
+  // The runner whose sheet is open (asked once per redraw: the screen's size is a layout question).
+  let pickedId = null;
+  const picked = id => pickedId != null && pickedId === String(id);
+  function drawEveryone(m) {
+    if (!everyLayer) {
+      // Their own pane: above the course and its aid stations, under the followed runners' bib markers.
+      if (!m.getPane('tkEvery')) m.createPane('tkEvery').style.zIndex = 450;
+      everyLayer = L.layerGroup().addTo(m);
+      everyControl(m);
+      m.on('popupclose', () => everyCtl.getContainer().classList.remove('tk-pop'));
+      // A popup sits under the map's buttons: the key steps aside while one is open, so its Follow button can be tapped.
+      m.on('popupopen', () => everyCtl.getContainer().classList.add('tk-pop'));
+      // Swap dots and bib numbers as the map zooms past BIB_ZOOM.
+      m.on('zoomend', () => { if ((m.getZoom() >= BIB_ZOOM) !== everyZoom) drawEveryone(m); });
+      m.getContainer().addEventListener('click', e => { const b = e.target.closest('button[data-every-follow]'); if (b) { toggle(b.dataset.everyFollow); m.closePopup(); } });
+      // The runner sheet (phones) sits in the map card, outside the map: its Follow button is caught there.
+      const host = m.getContainer().parentElement;
+      if (TR() && TR().sheet) { SH = TR().sheet(host, m); host.addEventListener('click', e => { const b = e.target.closest('.trk-sheet button[data-every-follow]'); if (b) { toggle(b.dataset.everyFollow); SH.refresh(); } }); }
+    }
+    const box = everyCtl.getContainer();
+    if (!live()) { box.hidden = true; sync(everyMarks, everyLayer, []); return; }
+    const all = TR().list().map(infoOf).filter(o => o && o.r.pos && !(o.c && o.c.status) && !gone(o));
+    const n = {}; all.forEach(o => { const g = groupOf(o).id; n[g] = (n[g] || 0) + 1; });
+    box.hidden = !all.length;
+    // In the bottom corner, so the key opens upwards, above the buttons.
+    const key = everyOn && keyOpen ? `<div class="tk-every-key">${GROUPS.filter(g => n[g.id]).map(g => `<button type="button" data-g="${g.id}" class="${hidden.includes(g.id) ? 'off' : ''}" aria-pressed="${!hidden.includes(g.id)}"><i style="background:${g.color}"></i>${esc(g.label)} <small>${n[g.id]}</small></button>`).join('')}</div>` : '';
+    const ctl = key + `<div class="tk-every-row"><button type="button" class="tk-every-btn${everyOn ? ' on' : ''}" data-every="1" aria-pressed="${everyOn}">Everyone <small>${all.length}</small></button>` +
+      (everyOn ? `<button type="button" class="tk-every-races" data-keyopen="1" aria-expanded="${keyOpen}">${GROUPS.filter(g => n[g.id]).map(g => `<i style="background:${g.color}"></i>`).join('')}Races</button>` : '') + '</div>';
+    if (box.dataset.html !== ctl) { box.innerHTML = ctl; box.dataset.html = ctl; }  // only when it changed: a tap mid-redraw is kept
+    // Zoomed in, each runner is their bib number in their race's colour; on the whole course, a small dot.
+    const bibs = (everyZoom = m.getZoom() >= BIB_ZOOM);
+    const shown = everyOn ? all.filter(o => !hidden.includes(groupOf(o).id)) : [];
+    const spot = o => o.r.pos.est ? [o.r.pos.est.lat, o.r.pos.est.lon] : [o.r.pos.lat, o.r.pos.lon];
+    sync(everyMarks, everyLayer, shown.map(o => {
+      const g = groupOf(o), p = o.r.pos, ll = spot(o), faint = !!(p.est || p.stale || p.ageMs > 30 * 60e3);   // faint: a guess, or old news
+      const sel = picked(o.r.id), dot = { radius: sel ? 9 : 6, weight: sel ? 4 : 2, color: sel ? '#111' : '#fff', fillColor: g.color, fillOpacity: faint ? 0.45 : 1 };
+      return {
+        id: o.r.id, ll, kind: bibs ? 'bib' : 'dot', look: g.color + faint + sel,
+        make: () => bibs ? L.marker(ll, { pane: 'tkEvery', icon: bibIcon(o.bib, g.color, faint, sel) })
+          : L.circleMarker(ll, Object.assign({ pane: 'tkEvery', bubblingMouseEvents: false }, dot)),
+        restyle: mk => bibs ? mk.setIcon(bibIcon(o.bib, g.color, faint, sel)) : mk.setStyle(dot),
+        html: () => {
+          // Others on the same spot (an aid station, a bunch on the climb), named in the popup as their bibs overlap.
+          const near = bibs ? shown.filter(x => x !== o && window.GPT.metres(spot(x), ll) < 40).map(x => x.bib).sort((a, b) => a - b) : [];
+          return popHTML(o, (near.length ? `<br><span class="muted">Also here: ${near.slice(0, 15).map(b => 'bib ' + esc(b)).join(', ')}${near.length > 15 ? ` and ${near.length - 15} more` : ''}</span>` : '') +
+            `<br><button type="button" class="btn small tk-pop-follow" data-every-follow="${esc(o.bib)}">${isOn(o.bib) ? 'Unfollow' : 'Follow'}</button>`);
+        }
+      };
+    }));
+  }
+
+  // ---------- followed runners on the Map tab ----------
+  let layer = null;
+  function drawMap() {
+    const m = window.GPTRunner && GPTRunner.map();
+    if (!m || !window.L) return;
+    pickedId = sheetOn() ? SH.id() : null;
+    drawEveryone(m);
+    if (!layer) layer = L.layerGroup().addTo(m);
+    const items = [];
+    if (live()) follow.forEach((bib, k) => {
+      const o = info(bib), p = o && o.r.pos;
+      if (!p || gone(o) || (o.c && o.c.status && o.c.status !== 'finished')) return;   // (no marker for old news: their card says where they were last heard)
+      const ll = p.est ? [p.est.lat, p.est.lon] : [p.lat, p.lon], cls = `trk-mk tk-mk${p.est ? ' est' : ''}${p.stale || p.ageMs > 30 * 60e3 ? ' stale' : ''}${picked(bib) ? ' sel' : ''}`;
+      const icon = () => L.divIcon({ className: '', html: `<div class="${cls}">${esc(bib)}</div>`, iconSize: [30, 18], iconAnchor: [15, 9 - 20 * (k % 3)] });
+      items.push({ id: bib, ll, kind: 'fol', look: cls + (k % 3), make: () => L.marker(ll, { icon: icon(), zIndexOffset: 800 }), restyle: mk => mk.setIcon(icon()),
+        html: () => popHTML(o) });
+    });
+    sync(folMarks, layer, items);
+  }
+  function showOnMap(bib) {
+    const o = info(bib), p = o && o.r.pos; if (!p) return;
+    GPTRunner.setTab('map');
+    setTimeout(() => {
+      const m = GPTRunner.map(); if (!m) return;
+      drawMap(); m.setView(p.est ? [p.est.lat, p.est.lon] : [p.lat, p.lon], 14);
+      // Their details with it: how far they are from you, the next point and the fix.
+      const e = folMarks.get(String(bib)); if (!e) return;
+      if (sheetOn()) openSheet(folMarks, String(bib)); else if (e.mk.getPopup()) e.mk.openPopup();
+    }, 80);
+  }
+
+  // ---------- start ----------
+  // runner.html#bib=1047 (a shared link): follow that runner and open on the Track tab.
+  function fromHash() {
+    const m = /bib=(\d+)/.exec(location.hash);
+    if (!m) return false;
+    if (!isOn(m[1])) { follow = follow.concat(m[1]); store.set('follow', follow); alerts(true); told(); }
+    try { history.replaceState(history.state, '', location.pathname + location.search); } catch (e) { }
+    if (window.GPTRunner) GPTRunner.setTab('track');
+    return true;
+  }
+  addEventListener('hashchange', () => { if (fromHash()) draw(); });
+  fromHash();
+  draw(); alerts();
+  const tr = TR();
+  if (tr) tr.onUpdate(() => { drawMap(); if (onTab()) { drawStatus(); drawCards(); drawOrder(); if ($('tkFind').value) drawHits(); } });
+  document.querySelector('.rn-nav button[data-tab="track"]').addEventListener('click', draw);
+  setInterval(() => { if (onTab()) drawStatus(); }, 30e3);
+  addEventListener('online', drawStatus); addEventListener('offline', drawStatus);
+})();

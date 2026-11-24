@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GPT100 Runner</title>
+<meta name="description" content="GPT100 runner and crew app: your race on the map, where you are, the next aid station, cut-offs, crew points, the schedule and the emergency card in five languages.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#223c2c" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12231a" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest-runner.webmanifest">
+<link rel="icon" href="icons/icon-48.png" type="image/png" sizes="48x48">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="lib/fonts.css?v=8">
+<link rel="stylesheet" href="lib/leaflet.css?v=8">
+<link rel="stylesheet" href="css/app.css?v=8">
+<link rel="stylesheet" href="css/field.css?v=8">
+<link rel="stylesheet" href="css/runner.css?v=8">
+</head>
+<body class="field runner">
+<header class="top">
+  <a class="brand" href="runner.html" aria-label="GPT100 Runner"><img class="brand-logo" src="icons/rw-logo.png" alt="SingleTrack" width="77" height="34"></a>
+  <span id="net" class="net" hidden>Offline</span>
+  <button type="button" id="rnHelpIntro" class="rn-q" aria-label="How the app works">?</button>
+</header>
+
+<!-- First-run intro (also from the ? button) -->
+<div id="rnIntro" class="rn-intro" role="dialog" aria-modal="true" aria-labelledby="rnIntroTitle" hidden>
+  <div class="rn-intro-card">
+    <button type="button" class="rn-intro-skip" id="rnIntroSkip">Skip</button>
+    <div id="rnIntroBody"></div>
+    <div class="rn-intro-dots" id="rnIntroDots" aria-hidden="true"></div>
+    <div class="rn-intro-nav"><button type="button" class="btn" id="rnIntroBack">Back</button><button type="button" class="fd-big" id="rnIntroNext">Next</button></div>
+  </div>
+</div>
+
+<main class="fd rn-page">
+  <div class="rn-top">
+    <div class="rn-mode" role="group" aria-label="Mode"><button type="button" data-m="runner" class="on">I'm running</button><button type="button" data-m="crew">I'm crewing</button></div>
+    <section class="rn-pick">
+      <label for="rnRace" class="rn-vh">Race</label>
+      <select id="rnRace" aria-label="Race"></select>
+      <div id="rnStages" class="rn-stages" role="group" aria-label="Stage" hidden></div>
+      <p id="rnStart" class="fd-hint"></p>
+    </section>
+    <div id="rnNotices"></div>
+  </div>
+
+  <!-- Home: welcome and a summary of your race -->
+  <div class="rn-tab" data-tab="home">
+    <section id="fdOffline" class="fd-offline" hidden></section>
+    <section class="fd-card rn-hero" id="rnHero"></section>
+    <section class="fd-card" id="rnHomeNext"></section>
+    <div class="rn-quick">
+      <button type="button" data-go="map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15"/></svg><span>Map and<br>where am I</span></button>
+      <button type="button" data-go="aid"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z M9 8h6 M9 12h6 M9 16h4"/></svg><span id="rnQuickAid">Aid stations<br>and cut-offs</span></button>
+      <button type="button" data-go="help" class="rn-quick-help"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 8v8 M8 12h8"/></svg><span>Need<br>help?</span></button>
+    </div>
+    <p id="fdTrack" class="fd-track" hidden></p>
+  </div>
+
+  <!-- Map: fills the screen, with the profile pinned at the bottom -->
+  <div class="rn-tab fd-maptab" data-tab="map" hidden>
+    <p class="fd-mapfor"><span id="rnMapFor"></span> <button type="button" class="fd-linkbtn" id="rnChangeRace">Change race</button></p>
+    <!-- Follow me (your dot keeps up, and a buzz if you step off the course) and Keep screen on (js/live.js) -->
+    <div class="rn-mapopts lv-chips" id="rnMapOpts">
+      <label><input type="checkbox" id="rnFollowMe">Follow me</label>
+      <label id="rnAwakeL" hidden><input type="checkbox" id="rnAwake">Keep screen on</label>
+    </div>
+    <section class="fd-card fd-mapcard" id="rnMapCard">
+      <div id="fdMap" aria-label="Map"></div>
+      <button type="button" id="rnProfBar" class="rn-profbar" aria-controls="rnProf" aria-expanded="true"><span>Elevation profile</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+      <div id="rnProf" class="fd-prof"></div>
+    </section>
+    <p id="rnNoMap" class="fd-card muted" hidden>The map for this race isn't in the app yet. The aid stations and times still work.</p>
+  </div>
+
+  <!-- Aid stations (crew points for crews) -->
+  <div class="rn-tab" data-tab="aid" hidden>
+    <div data-for="crew" hidden>
+      <section class="fd-card">
+        <h2>Your runner</h2>
+        <p class="fd-hint">Their expected times come from live tracking when you follow them on the Track tab, or from where they were last seen.</p>
+        <label class="rn-crewpick" id="rnCrewBibRow" hidden><span>Runner</span><select id="rnCrewBib" class="rn-schedfor"></select></label>
+        <p id="rnCrewLive" class="fd-hint" hidden></p>
+        <div class="rn-seen">
+          <label>Last seen at <select id="rnSeenAt"><option value="">(not yet)</option></select></label>
+          <label>at <input id="rnSeenTime" type="time"></label>
+        </div>
+        <p id="rnSeenMsg" class="fd-hint"></p>
+        <!-- When to leave for the next crew point: the runner's expected time less the drive (data/crew-drives.js) -->
+        <div id="rnCrewNext" class="rn-crewnext" hidden></div>
+        <label class="rn-crewpick" id="rnCrewFromRow" hidden><span>Driving from</span><select id="rnCrewFrom" class="rn-schedfor"></select></label>
+      </section>
+    </div>
+    <section class="fd-card">
+      <h2 id="rnPlanTitle">Aid stations and cut-offs</h2>
+      <div class="rn-target"><label for="rnTarget">Target time</label><input id="rnTarget" type="text" inputmode="numeric" placeholder="e.g. 32:00"><span class="fd-hint" id="rnTargetMsg"></span></div>
+      <div id="rnPlan"></div>
+    </section>
+  </div>
+
+  <!-- Help: one safety flow in the runner's language (data/safety-cards.js). The buttons keep their ids; the text
+       around them is rendered by js/runner.js in the picked language. -->
+  <div class="rn-tab rn-helptab" data-tab="help" hidden>
+    <div class="rn-lang-row">
+      <label for="rnLang" class="rn-vh">Language</label>
+      <select id="rnLang" class="rn-schedfor rn-lang" aria-label="Language"></select>
+      <button type="button" class="btn rn-flip" id="rnLangFlip" hidden></button>
+    </div>
+    <section class="fd-card rn-safety">
+      <h2 id="rnHelpTitle">Need help?</h2>
+      <div class="rn-help">
+        <a class="fd-big fd-urgent" href="tel:000" id="rnCall000">Call 000</a>
+        <p class="rn-help-sub" id="rnCall000Sub"></p>
+        <a class="fd-big" id="rnCallMed" href="#" hidden>Call race medical</a>
+        <p class="rn-help-sub" id="rnCallMedSub"></p>
+      </div>
+      <div class="rn-card-alert" id="rnInterp"></div>
+    </section>
+    <!-- Tell Race Control: only while a Control board is watching, or while a message of yours is in progress (js/live.js) -->
+    <section class="fd-card rn-rc" id="rnRc" hidden>
+      <h2 id="rnRcTitle">Tell Race Control</h2>
+      <div id="rnRcBody"></div>
+    </section>
+    <section class="fd-card">
+      <h2 id="rnWhereTitle">Tell us where you are</h2>
+      <div class="rn-w3w">
+        <h3 id="rnW3wTitle">Your three words</h3>
+        <p class="rn-w3w-words" id="rnW3wWords"></p>
+        <p class="rn-w3w-nums" id="rnW3wNums"></p>
+        <p class="fd-hint" id="rnW3wMsg"></p>
+        <button type="button" class="fd-big rn-w3w-btn" id="rnW3wGet">Find my 3 words</button>
+      </div>
+      <div class="rn-help rn-help-share"><button class="fd-big fd-wa" id="rnShare" type="button">Share my location</button></div>
+      <p class="fd-hint" id="rnShareMsg"></p>
+      <ol class="rn-card-steps" id="rnWhereSteps"></ol>
+      <div class="rn-card-body" id="rnWhereNotes"></div>
+    </section>
+    <section class="fd-card">
+      <h2 id="rnLostTitle">Lost or stopping</h2>
+      <div class="rn-card-body" id="rnLost"></div>
+      <button type="button" class="btn" id="rnOpenMap">Open the map</button>
+    </section>
+    <section class="fd-card rn-card-wrap">
+      <h3 class="rn-card-sumtitle" id="rnSumTitle"></h3>
+      <div class="rn-card-sum" id="rnSum"></div>
+      <div id="rnCard" class="rn-card"></div>
+      <p class="fd-hint" id="rnCardNote"></p>
+    </section>
+  </div>
+
+  <!-- Track: follow runners live (GPS trackers and timing chips), their splits, and the live order (js/track-tab.js) -->
+  <div class="rn-tab" data-tab="track" hidden>
+    <section class="fd-card">
+      <h2>Follow a runner</h2>
+      <p class="fd-hint" id="tkStatus"></p>
+      <div class="tk-search"><label for="tkFind" class="rn-vh">Bib or name</label><input id="tkFind" type="search" inputmode="search" autocomplete="off" placeholder="Bib or name, e.g. 1047 or Smith"></div>
+      <div id="tkHits" class="tk-hits"></div>
+      <!-- Alerts for the runners you follow, and for Race Control's notices (js/live.js) -->
+      <div id="tkAlerts" class="tk-alerts" hidden></div>
+    </section>
+    <div id="tkCards"></div>
+    <section class="fd-card" id="tkResults">
+      <h2>Results</h2>
+      <p id="tkOfficial"></p>
+      <label for="tkRace" class="rn-vh">Race</label>
+      <select id="tkRace" class="rn-schedfor" aria-label="Race"></select>
+      <div class="tk-filter" role="group" aria-label="Show"><button type="button" data-g="" class="on">All</button><button type="button" data-g="F">Women</button><button type="button" data-g="M">Men</button></div>
+      <label for="tkAge" class="rn-vh">Age category</label>
+      <select id="tkAge" class="rn-schedfor tk-age" aria-label="Age category" hidden></select>
+      <div id="tkOrder"></div>
+    </section>
+  </div>
+
+  <!-- Schedule -->
+  <div class="rn-tab" data-tab="schedule" hidden>
+    <section class="fd-card">
+      <h2>Schedule</h2>
+      <div id="rnNow" class="rn-now"></div>
+      <label for="rnSchedFor" class="rn-vh">Show</label>
+      <select id="rnSchedFor" class="rn-schedfor" aria-label="Show the schedule for"></select>
+      <p class="fd-hint" id="rnVillage"></p>
+      <div id="rnSched"></div>
+    </section>
+  </div>
+
+  <!-- Gear -->
+  <div class="rn-tab" data-tab="gear" hidden>
+    <section class="fd-card" id="rnGearCard">
+      <h2>Mandatory gear</h2>
+      <div id="rnGear"></div>
+    </section>
+  </div>
+
+  <p class="fd-foot">A guide only: check the race briefing and follow the course markings. In an emergency call 000.</p>
+</main>
+
+<!-- Tabs along the bottom, for thumbs -->
+<nav class="rn-nav" aria-label="Sections">
+  <button type="button" data-tab="home" class="on"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7 M5 10v10h5v-6h4v6h5V10"/></svg><span>Home</span></button>
+  <button type="button" data-tab="map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15"/></svg><span>Map</span></button>
+  <button type="button" data-tab="aid"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5z M9 8h6 M9 12h6 M9 16h4"/></svg><span id="rnAidTab">Aid</span></button>
+  <button type="button" data-tab="help" class="rn-nav-help"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 8v8 M8 12h8"/></svg><span>Help</span></button>
+  <button type="button" data-tab="track"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z M12 7v3l2 1.5"/></svg><span>Track</span></button>
+  <button type="button" data-tab="schedule"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M12 7v5l3 2"/></svg><span>Schedule</span></button>
+  <button type="button" data-tab="gear"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7V5a4 4 0 0 1 8 0v2 M5 7h14l-1 13H6z M10 12l2 2 3-4"/></svg><span>Gear</span></button>
+</nav>
+
+<script src="js/live.js?v=8"></script>
+<script src="js/viewport.js?v=8"></script>
+<script src="lib/leaflet.js?v=8"></script>
+<script src="js/heading.js?v=8"></script>
+<script src="data/config.js?v=8"></script>
+<script src="data/course.js?v=8"></script>
+<script src="data/courses.js?v=8"></script>
+<script src="data/course-w3w.js?v=8"></script>
+<script src="data/access-edits.js?v=8"></script>
+<script src="js/engine.js?v=8"></script>
+<script src="data/tiles.js?v=8"></script>
+<script src="js/basemap.js?v=8"></script>
+<script src="js/profile.js?v=8"></script>
+<script src="data/pacing.js?v=8"></script>
+<script src="data/races.js?v=8"></script>
+<script src="data/splits.js?v=8"></script>
+<script src="data/runner-courses.js?v=8"></script>
+<script src="data/runner-info.js?v=8"></script>
+<script src="data/safety-cards.js?v=8"></script>
+<script src="data/crew-drives.js?v=8"></script>
+<script src="js/races.js?v=8"></script>
+<script src="data/demo-runners.js?v=8"></script>
+<script src="js/demo.js?v=8"></script>
+<script src="js/timing.js?v=8"></script>
+<script src="js/tracking.js?v=8"></script>
+<script src="js/runner.js?v=8"></script>
+<script src="js/track-tab.js?v=8"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # Buffalo Stampede App: Scope
 
-Draft v0.2, 24 November 2026. v0.2 records the decisions on the scope questions (section 11), takes the race data from the 2027 course details sheet, and lines up with the BSF27 Aid Station Operation Plan and Medical and Rescue Plan. Prepared for Chad Freak, Operations Manager.
+Draft v0.3, 24 November 2026. v0.3 confirms the shared core (this repository, now `singletrack-app`), settles the 42k cut-off, Bakers Gully and the 20k course, and takes the 2027 entry targets from the 23 November entry report. v0.2 recorded the decisions on the scope questions (section 11), took the race data from the 2027 course details sheet, and lined up with the BSF27 Aid Station Operation Plan and Medical and Rescue Plan. Prepared for Chad Freak, Operations Manager.
 
 This scopes a race-weekend app for the Buffalo Stampede Festival (Bright, 19 to 21 March 2027). It starts from what the GPT100 Safety app already does, takes the future-proofing work from the Running Wild app, and then goes further: the app is built around the people who use it on the day and the handoffs between them, not around tabs.
 
@@ -9,6 +9,7 @@ Built from:
 - The GPT100 app ([SingleTrackEvents/GPT100](https://github.com/SingleTrackEvents/GPT100)) and the Running Wild scope v0.3 ([SingleTrackEvents/runningwild](https://github.com/SingleTrackEvents/runningwild), `docs/SCOPE.md`).
 - The volunteer rego scope v0.7 ([SingleTrackEvents/volunteer](https://github.com/SingleTrackEvents/volunteer)).
 - BSF_2027 course details (Course Manager's sheet), BSF27 Aid Station Operation Plan v0.3, BSF27 Medical and Rescue Plan v0.1.
+- Buffalo Stampede 2027 entry report, 23 November 2026 (targets and entries to date).
 - buffalostampede.au as at 24 November 2026.
 
 ## 1. What we're building
@@ -36,7 +37,7 @@ The goal is one connected flow. A runner's help request, the Safety Officer who 
 | --- | --- |
 | **Dates** | Friday 19 to Sunday 21 March 2027 |
 | **Base** | Event Village, Medical Base and Event HQ at Pioneer Park, Bright |
-| **Size** | 4,000 to 4,500 runners, 5,000 to 8,000 spectators and crew, about 500 staff and volunteers |
+| **Size** | 2027 target of 4,680 entries (1,639 at 23 November, 16 weeks out; 3,494 in 2026), 5,000 to 8,000 spectators and crew, 748 volunteer slots |
 | **Country** | Alpine: Mystic, Clearspot, Buckland Valley, Mt Buffalo. Steep climbs, long descents, the plateau, and 4WD-only access in places |
 | **Medical** | Race Day Medical (being engaged, quote request v0.6). Medical Base at Pioneer Park, posts at Eurobin and the Chalet, a valley roving crew for Mystic, Clearspot and Bakers Gully |
 | **Timing and tracking** | Living It Live: RaceResult timing at each station, and a satellite tracker with SOS on every 42k and 100k runner, read live at Event HQ. They tracked Buffalo 2026, the race the GPT100 app's demo already replays |
@@ -46,15 +47,17 @@ The goal is one connected flow. A runner's help request, the Safety Officer who 
 
 From the BSF_2027 course details sheet. First runner times are the Course Manager's predictions.
 
-| Race | Start | Distance and climb | Aid stations (cut-off) | Final cut-off | Starters |
+| Race | Start | Distance and climb | Aid stations (cut-off) | Final cut-off | 2027 target |
 | --- | --- | --- | --- | --- | --- |
-| Twilight 10k | Fri 18:00 | 10.5 km, +518 m | Mystic (19:30) | Fri 21:00 | 900 |
-| 100k and Teams Relay | Sat 06:00 | 100.1 km, +4,810 m | Clearspot (08:30), Buckland Valley (10:30), Eurobin Creek (12:10), The Chalet (15:10), Cresta Valley (17:30), Cresta Valley again (19:30), The Chalet (22:50), Eurobin Creek (Sun 01:40), Buckland Valley (04:40), Clearspot (07:30) | Sun 10:00 | 800 |
-| SkyRun 20k | Sat 07:30 | 20.2 km, +1,411 m | Mystic (08:50), Bakers Gully (10:30), Clearspot (12:30) | Sat 14:30 | 1,000 |
-| Family Trail 5k | Sat 08:00 | | | Sat 09:30 | 400 |
-| Junior Trail 2k | Sat 08:45 | | | Sat 09:30 | 400 |
-| SkyMarathon 42k | Sun 07:20, waves | 42.4 km, +1,610 m | The Chalet (09:10), Eurobin Creek (11:15), Buckland Valley (12:50), Dingo Ridge (no cut-off), Clearspot (15:20), Bakers Gully (no cut-off) | Sun 17:50 | 1,000 |
-| Grand Slam (10k, 20k, 42k) and Ultra Slam (10k, 100k, 42k) | All weekend | 72 km and 152 km | As each race | Ultra Slam: 100k finished by Sun 05:20 to make the 42k shuttle | |
+| Twilight 10k | Fri 18:00 | 10.5 km, +518 m | Mystic (19:30) | Fri 21:00 | 650 |
+| 100k and Teams Relay | Sat 06:00 | 100.1 km, +4,810 m | Clearspot (08:30), Buckland Valley (10:30), Eurobin Creek (12:10), The Chalet (15:10), Cresta Valley (17:30), Cresta Valley again (19:30), The Chalet (22:50), Eurobin Creek (Sun 01:40), Buckland Valley (04:40), Clearspot (07:30) | Sun 10:00 | 600 solo, 400 relay teams |
+| SkyRun 20k | Sat 07:30 | 20.2 km, +1,411 m | Mystic (08:50), Bakers Gully (10:30), Clearspot (12:30) | Sat 14:30 | 850 |
+| Family Trail 5k | Sat 08:00 | | | Sat 09:30 | 500 |
+| Junior Trail 2k | Sat 08:45 | | | Sat 09:30 | 500 |
+| SkyMarathon 42k | Sun 07:20, waves | 42.4 km, +1,610 m | The Chalet (09:10), Eurobin Creek (11:15), Buckland Valley (12:50), Dingo Ridge (no cut-off), Clearspot (15:20), Bakers Gully (no cut-off) | Sun 18:00 | 700 |
+| Grand Slam (10k, 20k, 42k) and Ultra Slam (10k, 100k, 42k) | All weekend | 72 km and 152 km | As each race | Ultra Slam: 100k finished by Sun 05:20 to make the 42k shuttle | 180 Grand Slam, 100 Ultra Slam |
+
+Slam runners are on top of each race's own target, so the field on each course is bigger than its own row: about 930 in the 10k, 1,030 in the 20k, 980 in the 42k, and 700 solo runners plus 400 relay runners in the 100k, with up to 200 pacers on the 100k from The Chalet. The app is built and load-tested for those numbers. The 42k cut-off is 18:00 (the course details sheet's 17:50 is to be corrected), and Bakers Gully serves the 20k on Saturday.
 
 The 100k details that matter to the app:
 
@@ -65,7 +68,7 @@ The 100k details that matter to the app:
 
 ### What makes Buffalo different from the GPT100
 
-- **Volume.** About four times the runners, seven races and two multi-race series over three days. Many more people need the app at once, and many are first-timers.
+- **Volume.** About four times the GPT100's runners, seven races and two multi-race series over three days. Many more people need the app at once, and many are first-timers.
 - **Night.** The 10k finishes in the dark on Friday, and the 100k runs through Saturday night. Eurobin, Buckland and Clearspot work an overnight session and hand over.
 - **Out and back.** The 100k passes Clearspot, Buckland Valley, Eurobin Creek and The Chalet twice and Cresta Valley twice in a row. Every station needs to know which pass a runner is on.
 - **Stations run several sessions.** Clearspot and Buckland Valley each run three sessions across two days, for different races.
@@ -192,7 +195,7 @@ Four walk-throughs show the flow end to end. Each step is one tap or less for th
 
 ## 7. Data the event needs
 
-- **Courses: the 2026 GPX** (decided). The 2027 course details sheet has the same aid stations and legs as 2026. The only change is the 20k's last leg (7.3 km and 80 m up in 2027, 6.9 km and 67 m up in 2026), so its GPX needs checking with the Course Manager.
+- **Courses: the 2026 GPX** (decided). The 2027 courses are the same as 2026. The course details sheet's 20k finish leg (7.3 km and 80 m up, against 6.9 km and 67 m up in 2026) is a remeasure, not a course change.
 - **Races, cut-offs, crew points, drop bags, relay changeovers and pacers:** the BSF_2027 course details sheet. It already has the columns the app needs, so the setup tool reads it directly.
 - **Aid stations and their sessions:** the Aid Station Operation Plan, Part B.
 - **Medical posts and care points:** the Medical and Rescue Plan, then Race Day Medical's Event Medical Service Plan.
@@ -204,7 +207,7 @@ Four walk-throughs show the flow end to end. Each step is one tap or less for th
 
 ## 8. Future proofing
 
-- **One core, many event packs, optional modules.** Every SingleTrack event runs on one codebase. What's different about each event lives in its event pack (courses, stations, posts, triggers, schedule) and in which modules it switches on (tracking, timing, medical, risk, aid stations, crew, relay, multi-race series). Buffalo and the GPT100 switch most of them on; Kilcunda switches on a few. Section 11, item 1 has the reasoning. Waiting on your go-ahead.
+- **One core, many event packs, optional modules.** Every SingleTrack event runs on one codebase. What's different about each event lives in its event pack (courses, stations, posts, triggers, schedule) and in which modules it switches on (tracking, timing, medical, risk, aid stations, crew, relay, multi-race series). Buffalo and the GPT100 switch most of them on; Kilcunda switches on a few. Section 11, item 1 has the reasoning. Confirmed on 24 November: the core lives in this repository, renamed `singletrack-app`, and Running Wild and the GPT100 move onto it.
 - **Fixed IDs.** Every event, race, aid station, post, runner and volunteer has an ID that doesn't change year to year, with Race Roster's IDs stored now and our own rego's later.
 - **One gateway.** Every private read and write goes through the Worker, so moving from shared passwords to logins only changes the Worker.
 - **Feeds as plug-ins.** Trackers, timing mats, phones and station reports all become position and checkpoint feeds of the same shape. A new provider is a new plug-in, not a rebuild.
@@ -226,7 +229,7 @@ Buffalo is six days after Razorback (13 March), and the shared core is due for K
 
 | Phase | Ready by | What ships |
 | --- | --- | --- |
-| 0. Decide and gather | 15 December 2026 | Code base decision (section 11). 2026 GPX checked. Course details sheet and Aid Station Operation Plan into the setup tool. 2026 tracking archive pulled |
+| 0. Decide and gather | 15 December 2026 | 2026 GPX loaded. Course details sheet and Aid Station Operation Plan into the setup tool. 2026 tracking archive pulled |
 | 1. Buffalo pack on the core | 31 January 2027 | Courses, stations and sessions, access, weather triggers, Find, field lane, runner and crew lanes with Buffalo crew rules, HQ board. Demo with a made-up Buffalo field |
 | 2. Aid stations and handoffs | 28 February 2027 | Aid Station Manager lane, withdrawals to followers and transport, report in, holds, restock triggers, sweep progress, push alerts by role. Tested at Snow Gum Run (shared core) |
 | 3. Medical and volunteers | 7 March 2027 | Patient record and outcome flow (once Race Day Medical agrees), volunteer roster import, runner list import, data protection review |
@@ -242,7 +245,7 @@ Made on 24 November 2026.
 
 | # | Question | Decision |
 | --- | --- | --- |
-| 1 | What is Buffalo built on? | **Recommended, to confirm:** one shared core with event packs and optional modules (see below) |
+| 1 | What is Buffalo built on? | One shared core with event packs and optional modules, in this repository (renamed `singletrack-app`). Running Wild and the GPT100 move onto it |
 | 2 | One app or separate apps? | One app with role lanes |
 | 3 | Aid station volunteers on phones? | Only the Aid Station Manager, for their own station: withdrawals, requests and reporting in. Timing mats and trackers cover who has passed |
 | 4 | Medical records? | Race Day Medical (likely). Full patient record in the app, ideally |
@@ -253,6 +256,9 @@ Made on 24 November 2026.
 | 9 | Languages? | English, with the language setup kept |
 | 10 | Track grades and helicopter sites? | Go without for 2027. Carry-outs use "not yet assessed" times |
 | 11 | Course data? | The 2026 GPX and the BSF_2027 course details sheet |
+| 12 | 42k final cut-off? | 18:00. The course details sheet's 17:50 is to be corrected |
+| 13 | Bakers Gully on Saturday? | The 20k |
+| 14 | Field sizes? | The 2027 targets in Damon's entry report (section 2) |
 
 **Item 1, the reasoning.** Buffalo and the GPT100 are more complex than the Running Wild events, but the complexity is mostly in their data and in extra features, not in a different way of working. Running Wild is already about 90% the GPT100's code. Kept as separate copies, every fix and improvement has to be made three times, and the copies drift apart (the GPT100 code names the GPT100 in about 300 places). One core with event packs and switchable modules means Buffalo's new aid station and medical lanes are there for the GPT100 and Running Wild for free. The guard rails: each event runs its own crash tests and demo before release, and each event locks to a tested build a week out, so a change for Kilcunda can never break Buffalo's race week. If the core isn't ready by the end of January, Buffalo starts from a copy and merges back after the Prom, so the fallback costs time, not the event.
 
@@ -260,11 +266,7 @@ Made on 24 November 2026.
 
 | # | Item | Owner |
 | --- | --- | --- |
-| 1 | Confirm decision 1, and whether the shared core lives in the Running Wild repository, this one, or a new SingleTrack app repository | Operations Manager |
-| 2 | Race Day Medical to agree to record patients in the app, and to the data protection review | Operations Manager |
-| 3 | 42k final cut-off: 17:50 in the course details sheet, 18:00 on the website and in the Medical and Rescue Plan | Course Manager |
-| 4 | Bakers Gully on Saturday: the 20k (course details sheet) or the 100k (EMP v3)? Aid Station Operation Plan, open item 1 | Course Manager |
-| 5 | 100k forecast: 580 or 800 starters. Affects load testing and the restock triggers | Operations Manager |
-| 6 | 20k GPX: check the 2027 finish leg against the 2026 file | Course Manager |
-| 7 | Living It Live: live access to the 2027 timing and tracking feeds, and the 2026 archive | Operations Manager |
-| 8 | Aid Station Managers named for each station, so their station codes can be issued | Volunteer Coordinator |
+| 1 | Race Day Medical to agree to record patients in the app, and to the data protection review | Operations Manager |
+| 2 | Correct the 42k final cut-off to 18:00 in the course details sheet | Course Manager |
+| 3 | Living It Live: live access to the 2027 timing and tracking feeds, and the 2026 archive | Operations Manager |
+| 4 | Aid Station Managers named for each station, so their station codes can be issued | Volunteer Coordinator |
