@@ -26,7 +26,8 @@
   // The app's clock: the demo's race time when the demo is running (js/demo.js, ?demo=sat09:30), else the real time.
   function now() {
     const D = window.GPTDemo, R = window.GPT100_DEMO;
-    if (D && D.on && D.simNow && R && R.contests && R.contests['GPT100 Miler']) return Date.parse(R.contests['GPT100 Miler'].start + ':00+11:00') + D.simNow();
+    const A = R && R.contests && R.contests[R.anchor || 'GPT100 Miler'];
+    if (D && D.on && D.simNow && A) return Date.parse(A.start + ':00+11:00') + D.simNow();
     return Date.now();
   }
   // Sunrise and sunset (ms) at the course (-37.2, 142.5) on the day around time t: the sunrise equation, to a minute or two.

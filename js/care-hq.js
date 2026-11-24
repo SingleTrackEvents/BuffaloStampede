@@ -5,13 +5,14 @@
 (function () {
   const $ = id => document.getElementById(id), box = $('careHqBody');
   if (!box || !window.ST || !ST.has('medical')) return;
-  const C = window.GPT100_CONFIG || {}, W = C.weather || {}, BASE = (W.refreshUrl || '').replace(/\/$/, '');
+  // In the practice mode (js/demo.js) it talks to the practice stand-in, never the race's database.
+  const DEMO = window.GPTDemo && GPTDemo.rcBase, C = window.GPT100_CONFIG || {}, W = C.weather || {}, BASE = (DEMO || W.refreshUrl || '').replace(/\/$/, '');
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const tf = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
   const TYPES = { skin: 'Skin, blisters, cuts', msk: 'Muscle or joint', gut: 'Gut', exhaust: 'Exhaustion or dehydration', cold: 'Cold', heat: 'Heat', head: 'Head injury', snake: 'Snake bite', cardio: 'Heart or breathing', other: 'Other' };
   const OUT = { continued: 'Continued', withdrawn: 'Withdrawn', transported: 'To hospital' };
   let rows = [], medCode = '', timer = null, shown = false, filter = '', err = '';
-  const pw = () => window.MedPlan && window.MedPlan.pw && window.MedPlan.pw();
+  const pw = () => DEMO ? 'practice' : window.MedPlan && window.MedPlan.pw && window.MedPlan.pw();
 
   async function api(path, body) {
     const r = await fetch(BASE + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RC-Password': pw() }, body: JSON.stringify(body) } : { headers: { 'X-RC-Password': pw() }, cache: 'no-store' });

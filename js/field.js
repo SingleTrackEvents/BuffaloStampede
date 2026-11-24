@@ -10,7 +10,7 @@
   const LV = window.GPTLive; // the line to Race Control (js/live.js)
   let here = null, watchId = null, map = null, layer = null, runnerLayer = null, runnerSheet = null, fs = null, RP = null;
   // The race clock: the demo's when it's on (js/demo.js, ?demo=), so cut-offs and expected times can be rehearsed.
-  const D0 = window.GPT100_DEMO ? Date.parse(GPT100_DEMO.contests['GPT100 Miler'].start + ':00+11:00') : 0;
+  const DC = window.GPT100_DEMO && GPT100_DEMO.contests[GPT100_DEMO.anchor || 'GPT100 Miler'], D0 = DC ? Date.parse(DC.start + ':00+11:00') : 0;
   const clock = () => window.GPTDemo && D0 ? D0 + GPTDemo.simNow() : Date.now();
   const ago = ms => ms < 60e3 ? 'just now' : RX.dur(ms) + ' ago';
 

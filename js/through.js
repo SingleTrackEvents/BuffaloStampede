@@ -40,8 +40,10 @@
     const rs = T.runners().filter(r => stageOf(r));
     return rs.length ? rs : null;
   }
+  // The race clock: the practice mode's when it's on (js/demo.js), else the real time.
+  const clock = () => window.GPT && GPT.now ? GPT.now() : Date.now();
   function station(post, t) {
-    t = t || Date.now();
+    t = t || clock();
     const s = session(post, t);
     if (!s) return null;
     const live = liveRunners(), passes = [];
@@ -76,5 +78,5 @@
   // What a planned amount comes to for the runners still to come, rounded up to a whole unit (or a tenth of a box).
   const need = (plan, pct) => { const v = plan * (1 - pct); return plan < 10 ? Math.ceil(v * 10) / 10 : Math.ceil(v); };
   const pc = p => Math.round(p * 100) + '%';
-  window.STThrough = { station, need, pc };
+  window.STThrough = { station, need, pc, clock };
 })();

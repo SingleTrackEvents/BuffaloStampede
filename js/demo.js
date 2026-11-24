@@ -31,16 +31,21 @@
   // fixes carry real times of day. Race time is kept as ms since the Miler start, in segments of real time each at
   // a speed (0 while paused): race time at real time t is s + v * (t - t0) of the segment in force. Kept in
   // sessionStorage so the race carries on when moving between the apps.
-  const SS = 'st_demo', MILER0 = Date.parse(R.contests['GPT100 Miler'].start + ':00+11:00');
+  // Any other event (Buffalo) sets generic in its demo-runners.js: each contest runs its own race (stage in races.js)
+  // on that race's course, paced between its first runner and its cut-offs, with timing columns from its own
+  // checkpoints. anchor: the contest the race clock counts from; days: the event's days, for ?demo=sat09:30.
+  const GEN = !!R.generic, MAIN = GEN ? R.anchor : 'GPT100 Miler';
+  const SS = 'st_demo', MILER0 = Date.parse(R.contests[MAIN].start + ':00+11:00');
   const SPEEDS = [0, 1, 10, 60];
   function startAt(v) {
     let m;
     if ((m = /^(\d+(?:\.\d+)?)h$/i.exec(v)) || ((m = /^(\d+(?:\.\d+)?)$/.exec(v)) && +v !== 1)) return (+m[1]) * 3600e3;
     if ((m = /^(thu|fri|sat|sun)\s*(\d{1,2})(?::?(\d{2}))?$/i.exec(v))) {
-      const day = { thu: 5, fri: 6, sat: 7, sun: 8 }[m[1].toLowerCase()];
-      const t = Date.parse(`2026-11-0${day}T${String(+m[2]).padStart(2, '0')}:${m[3] || '00'}:00+11:00`);
+      const day = GEN ? (R.days || {})[m[1].toLowerCase()] : '2026-11-0' + { thu: 5, fri: 6, sat: 7, sun: 8 }[m[1].toLowerCase()];
+      const t = Date.parse(`${day}T${String(+m[2]).padStart(2, '0')}:${m[3] || '00'}:00+11:00`);
       if (!isNaN(t)) return t - MILER0;  // an impossible time (sat99:99) falls through to the default
     }
+    if (GEN) return (R.startH != null ? R.startH : 3) * 3600e3;
     return 9 * 3600e3;  // the default: 9 hours in, the Miler spread from Halls Gap back to the Mt Difficult ridge
   }
   let segs = null;
@@ -68,18 +73,42 @@
   const EPOCH = Date.UTC(2006, 0, 1) / 1000;
   let G = null, PTS = null, RUN = null;
   // Time from course km a to km b for a runner at pace f (0 = the fastest runner, 1 = the cut-offs), from the pacing table.
-  const at = (km, k) => { if (km <= PTS[0].km) return PTS[0][k]; for (let i = 1; i < PTS.length; i++) if (km <= PTS[i].km) { const a = PTS[i - 1], b = PTS[i]; return a[k] + (b[k] - a[k]) * (km - a.km) / (b.km - a.km); } return PTS[PTS.length - 1][k]; };
-  const timeTo = (a, b, f) => { const x = at(b, 'f') - at(a, 'f'), y = at(b, 's') - at(a, 's'); return x + f * (y - x); };
-  function kmAfter(k0, f, ms, k1) {
+  // (pts: a contest's own checkpoints in the generic demo; the pacing table otherwise.)
+  const at = (km, k, pts) => { const Q = pts || PTS; if (km <= Q[0].km) return Q[0][k]; for (let i = 1; i < Q.length; i++) if (km <= Q[i].km) { const a = Q[i - 1], b = Q[i]; return a[k] + (b[k] - a[k]) * (km - a.km) / ((b.km - a.km) || 1); } return Q[Q.length - 1][k]; };
+  const timeTo = (a, b, f, pts) => { const x = at(b, 'f', pts) - at(a, 'f', pts), y = at(b, 's', pts) - at(a, 's', pts); return x + f * (y - x); };
+  function kmAfter(k0, f, ms, k1, pts) {
     let lo = k0, hi = k1;
-    if (timeTo(k0, hi, f) <= ms) return hi;
-    for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if (timeTo(k0, m, f) <= ms) lo = m; else hi = m; }
+    if (timeTo(k0, hi, f, pts) <= ms) return hi;
+    for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if (timeTo(k0, m, f, pts) <= ms) lo = m; else hi = m; }
     return lo;
   }
   const STOPS = { stopped: 1, lost: 1, off: 1, dnf: 1 };  // cases where the runner goes no further than their case km
+  // A contest's checkpoints for the generic demo: course km (gk) with the first runner's time (f) and the cut-off (s),
+  // a point with no cut-off taking one between its neighbours by km, and a finish with none three times the winner's.
+  function racePts(st) {
+    const P = st.points.map(p => ({ km: p.gk != null ? p.gk : p.km, name: p.name, kind: p.kind, f: Date.parse(p.first + ':00+11:00'), s: p.cutoff ? Date.parse(p.cutoff + ':00+11:00') : null }));
+    const L = P[P.length - 1]; if (!L.s) L.s = P[0].f + 3 * (L.f - P[0].f);
+    P.forEach((p, i) => { if (p.s) return; let a = i - 1, b = i + 1; while (!P[b].s) b++; p.s = P[a].s + (P[b].s - P[a].s) * (p.km - P[a].km) / ((P[b].km - P[a].km) || 1); });
+    return P;
+  }
+  function setupGeneric() {
+    const RS = window.GPT_RACES;
+    RUN = [];
+    for (const r of R.runners) {
+      const ct = R.contests[r.contest], st = ct && RS && RS.stages[ct.stage]; if (!st) continue;
+      const E = st.course && st.course !== '100' ? G.course(st.course) : G, P = racePts(st);
+      const T0 = Date.parse(ct.start + ':00+11:00') - MILER0, k0 = P[0].km, k1 = P[P.length - 1].km;
+      const x = { id: 'd' + r.bib, bib: String(r.bib), name: r.name, contest: r.contest, f: r.pace, k0, k1, T0, E, P, kase: r.case || '', caseKm: r.km, gps: r.case !== 'nogps' && ct.gps !== false, lastSim: 0, bearing: (r.bib * 2.399) % (2 * Math.PI) };
+      x.tCase = x.caseKm != null ? T0 + timeTo(k0, x.caseKm, x.f, P) : Infinity;
+      x.tFinish = STOPS[x.kase] ? Infinity : T0 + timeTo(k0, k1, x.f, P);
+      RUN.push(x);
+    }
+  }
   function setup() {
     if (RUN) return;
-    G = window.GPT; const P = window.GPT100_PACING;
+    G = window.GPT;
+    if (GEN) return setupGeneric();
+    const P = window.GPT100_PACING;
     PTS = P.miler.points.map(p => ({ km: p.km, name: p.name, f: Date.parse(p.fast + ':00+11:00'), s: Date.parse(p.slow + ':00+11:00') }));
     const kmOf = name => { const a = G.AID.find(x => x.name === name); return a ? a.trail_km : null; };
     RUN = [];
@@ -94,10 +123,10 @@
       RUN.push(x);
     }
   }
-  const kmAt = (r, s) => s < r.T0 ? null : Math.min(kmAfter(r.k0, r.f, s - r.T0, r.k1), STOPS[r.kase] ? r.caseKm : Infinity);
+  const kmAt = (r, s) => s < r.T0 ? null : Math.min(kmAfter(r.k0, r.f, s - r.T0, r.k1, r.P), STOPS[r.kase] ? r.caseKm : Infinity);
   // Where the runner is at sim time s: on the course, with a little GPS wobble; the off-course runner drifts 300 m over 15 minutes.
   function ll(r, s) {
-    const p = G.route[G.idxAtKm(kmAt(r, s))];
+    const E = r.E || G, p = E.route[E.idxAtKm(kmAt(r, s))];
     let lat = p[0], lon = p[1];
     if (r.kase === 'off' && s > r.tCase) {
       const d = Math.min(1, (s - r.tCase) / (15 * 60e3)) * 300;
@@ -111,7 +140,7 @@
   // ---------- the GPS feed (GPS-seuranta shapes) ----------
   let dataText = '';
   function initText() {
-    let s = 'VERSIO:3\nRACENAME:GPT100 demo\nTIMEZONE:660\nGRABINTERVAL:15\nDASHLIMIT:60\nLIVEBUFFER:150\nMINBEFORESTART:3\nLIVE:1\nMAPSYSTEM:OTM\nCENTERPOINT:142.52|-37.3\nMAXTIMEMINS:2600\n';
+    let s = `VERSIO:3\nRACENAME:${GEN ? R.name : 'GPT100 demo'}\nTIMEZONE:660\nGRABINTERVAL:15\nDASHLIMIT:60\nLIVEBUFFER:150\nMINBEFORESTART:3\nLIVE:1\nMAPSYSTEM:OTM\nCENTERPOINT:${GEN ? G.route[0][1] + '|' + G.route[0][0] : '142.52|-37.3'}\nMAXTIMEMINS:2600\n`;
     for (const r of RUN) if (r.gps) s += `COMPETITOR:${r.id}|20261106|600|${r.bib} ${r.name}|${r.bib} ${r.name.split(' ').pop()}|A=${r.bib} ${r.name}|\n`;
     return s;
   }
@@ -150,7 +179,45 @@
   const AGE_GROUPS = ['Open', 'Masters', 'Open', '50-59', 'Open', 'Masters', '60-69', 'Open', 'Masters', 'Youth', '50-59', 'Open', 'Legends'];
   const mel = ms => ms + 11 * 3600e3, two = n => String(n).padStart(2, '0');
   const hms = ms => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 3600)}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}`; };
+  // The generic demo's columns for a contest: Start, In and Out at each aid station (a second pass numbered: Clearspot2In),
+  // one read at a water point, Finish. [column, km].
+  const colCache = {};
+  function colsOf(r) {
+    if (colCache[r.contest]) return colCache[r.contest];
+    const seen = {}, out = [];
+    r.P.forEach((p, i) => {
+      if (i === 0) return out.push(['Start', p.km]);
+      if (i === r.P.length - 1) return out.push(['Finish', p.km]);
+      const base = p.name.replace(/\s*\((second|third) (pass|visit)\)\s*$/i, '').replace(/ water point$/i, '').replace(/[^A-Za-z0-9 ]/g, '').split(' ').map(w => w[0].toUpperCase() + w.slice(1)).join('');
+      const n = seen[base] = (seen[base] || 0) + 1, name = base + (n > 1 ? n : '');
+      if (p.kind === 'aid') out.push([name + 'In', p.km], [name + 'Out', p.km, 1]); else out.push([name, p.km]);
+    });
+    return colCache[r.contest] = out;
+  }
+  function timingGeneric() {
+    const now = simNow(), day0 = Math.min(...RUN.map(r => Math.floor(mel(realOf(r.T0)) / 86400e3))) * 86400e3;
+    T.chipDay = new Date(day0).toISOString().slice(0, 10);
+    const tod = ms => { const m = mel(ms) - day0, d = Math.floor(m / 86400e3), s = Math.floor(m % 86400e3 / 1000); return (d ? d + ':' : '') + `${two(Math.floor(s / 3600))}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}`; };
+    const fin = {}, rows = RUN.map(r => {
+      const km = kmAt(r, now), dnf = r.kase === 'dnf' && now >= r.tCase, cols = colsOf(r);
+      const miss = r.kase === 'missed' ? (cols.find(c => c[1] > r.k0 + 0.05 && c[1] >= r.caseKm - 0.05) || [])[1] : null;
+      const row = { Place: dnf ? 'DNF' : '', Status: dnf ? 'DNF' : '', Bib: r.bib, Name: r.name.replace(/^(.*) (\S+)$/, '$2, $1'), Contest: R.contests[r.contest].feed || r.contest, Gender: +r.bib % 3 ? 'M' : 'F', AgeGroup: AGE_GROUPS[(+r.bib * 7) % AGE_GROUPS.length] };
+      let last = 0;
+      for (const [col, k, out] of cols) {
+        const c = r.T0 + timeTo(r.k0, k, r.f, r.P) + (out ? 90e3 : 0);
+        const ok = km != null && k <= km + 1e-6 && c <= now && k !== miss;
+        row[col] = ok ? tod(realOf(c)) : '';
+        if (ok) last = c;
+      }
+      if (row.Finish) (fin[r.contest] = fin[r.contest] || []).push([last, row]);
+      row.Time = last ? hms(last - r.T0) : ''; row.Diff = '';
+      return row;
+    });
+    Object.values(fin).forEach(l => l.sort((a, b) => a[0] - b[0]).forEach(([, row], i) => { row.Place = i + 1 + '.'; row.Diff = i ? '' : '--'; }));
+    return rows;
+  }
   function timing() {
+    if (GEN) return timingGeneric();
     const now = simNow(), day0 = Math.min(...RUN.map(r => Math.floor(mel(realOf(r.T0)) / 86400e3))) * 86400e3;
     T.chipDay = new Date(day0).toISOString().slice(0, 10);
     // A time of day, with the days past the start day in front once past midnight.
@@ -183,6 +250,7 @@
     const url = typeof input === 'string' ? input : input && input.url;
     if (typeof url !== 'string' || !url.startsWith(ORIGIN + '/')) return realFetch(input, init);
     const path = url.slice(ORIGIN.length + 1);
+    if (/^(stn|care)\//.test(path) || /^rc\/(stn|care)\b/.test(path)) return serveLocal(path, init);
     return path.startsWith('rc/') ? serveRC(path.slice(3), init) : /^(live|help|fault|field\/|push\/)/.test(path) ? serveLive(path, init) : serve(path.replace(/^feed\//, ''));
   };
   const resp = (body, h) => new Response(body, { status: 200, headers: Object.assign({ 'Content-Type': 'text/plain' }, h || {}) });
@@ -221,8 +289,9 @@
     { id: 'demo7', severity: 'priority', km: 42.2, bib: '1042', name: 'Jamie Patel', race: 'GPT100 Miler', reporter: 'Race control, from the timing', unit: 'u-Sweep-1', desc: 'Overdue at Halls Gap, last chip read Mt Difficult Rd, tracker dead since then. Sweep 1 checking back along the track from Halls Gap.',
       at: { call: HMS(9, 31), dispatched: HMS(9, 33) } }
   ];
-  const CUSTOM = { 'u-Sweep-1': 'Sweep 1', 'u-Sweep-2': 'Sweep 2', 'u-Mt-William-SO': 'Mt William SO pair' };
-  const NOTES = [[HMS(8, 30), 'Halls Gap team back at base and restocked'], [HMS(9, 5), 'Weather: gusts 42 km/h on Mt William, under the trigger'], [HMS(9, 45), 'Mt William car park: 61 Stage 2 runners through']];
+  if (GEN) { SEED.length = 0; (R.seed || []).forEach(d => SEED.push(Object.assign({}, d, { at: Object.fromEntries(Object.entries(d.at).map(([k, v]) => [k, HMS(v[0], v[1])])) }))); }
+  const CUSTOM = GEN ? Object.assign({}, R.units || {}) : { 'u-Sweep-1': 'Sweep 1', 'u-Sweep-2': 'Sweep 2', 'u-Mt-William-SO': 'Mt William SO pair' };
+  const NOTES = GEN ? (R.notes || []).map(n => [HMS(n[0], n[1]), n[2]]) : [[HMS(8, 30), 'Halls Gap team back at base and restocked'], [HMS(9, 5), 'Weather: gusts 42 km/h on Mt William, under the trigger'], [HMS(9, 45), 'Mt William car park: 61 Stage 2 runners through']];
   const STEP_TEXT = { dispatched: 'Dispatched', onScene: 'On scene', leaving: 'Leaving scene' };
   const RCS = 'st_demo_rc';
   let over = { inc: {}, units: {}, log: [], n: 0 };  // changes made on the board, on top of the timeline
@@ -233,7 +302,7 @@
   function board() {
     const s = simNow(), incidents = [], log = [], units = {};
     let num = 0;
-    const unitLabel = id => CUSTOM[id] || (C.bases.find(b => 'team-' + b.key === id) || {}).name + ' team';
+    const unitLabel = id => CUSTOM[id] || ((C.bases || []).find(b => 'team-' + b.key === id) || {}).name + ' team';
     for (const d of SEED) {
       if (d.at.call > s) continue;
       num++;
@@ -328,6 +397,53 @@
   // in another, a help request sent there lands on the board, and a field phone shows on its map. Alerts (which need
   // the real Worker and the phone's own alert service) are not part of the demo.
   const LIVE_KEY = 'st_demo_live';
+  // ---------- aid stations and the medical log, kept in this browser ----------
+  // So a rehearsal never writes to the race's database: the Station tab (stocktakes, requests, holds, restock runs),
+  // the Log tab and HQ's Stations and Medical tabs talk to this stand-in instead. Any code signs in: the medical code
+  // is MED, every other code is a station's or the team's.
+  async function serveLocal(path, init) {
+    await ready;
+    const [name] = path.split('?'), now = Date.now(), L = liveStore();
+    L.stn = L.stn || []; L.care = L.care || []; L.codes = L.codes || {};
+    let b = {}; try { b = JSON.parse(init && init.body || '{}'); } catch (e) { }
+    const txt = (v, n) => String(v == null ? '' : v).slice(0, n), done = o => { saveLive(L); return json(o); };
+    if (name === 'stn/in') return json({ ok: true, post: txt(b.post, 60) || 'Eurobin Creek' });
+    if (name === 'stn/list') { const post = txt(b.post, 60), yard = post === 'Yard'; return json({ now, post, rows: L.stn.filter(x => yard || x.post === post || x.post === '*' || x.kind === 'release') }); }
+    if (name === 'stn/add') {
+      const post = txt(b.post, 60), saved = [];
+      for (const e of (b.entries || [])) {
+        if (!e || !e.id) continue; saved.push(e.id);
+        if (L.stn.some(x => x.id === e.id)) continue;
+        let at = post;
+        if (e.kind === 'run') at = e.to;
+        if (e.kind === 'runstate') { const r = L.stn.find(x => x.id === e.run); if (r) at = r.post; }
+        if (e.kind === 'reqstate') { const r = L.stn.find(x => x.id === e.request); if (r) { at = r.post; Object.assign(r, { state: e.state, st_t: now, updated: now }); } }
+        L.stn.unshift(Object.assign({}, e, { post: at, t: e.t || now, updated: now }, e.kind === 'request' ? { state: 'sent', st_t: now } : {}));
+      }
+      return done({ ok: true, saved, post });
+    }
+    if (name === 'care/list' || name === 'care/add') {
+      const role = /^med$/i.test(txt(b.code, 20)) ? 'medical' : 'field';
+      if (name === 'care/list') return json({ now, role, care: L.care.map(x => role === 'medical' ? x : Object.assign({}, x, { notes: null })) });
+      const saved = [];
+      for (const e of (b.entries || [])) {
+        if (!e || !e.id) continue; saved.push(e.id);
+        const i = L.care.findIndex(x => x.id === e.id), row = Object.assign({}, e, { role, t: Math.min(now, e.t || now), updated: now, deleted: e.deleted === true ? now : null, outcome: e.outcome || (e.kind === 'wd' ? 'withdrawn' : null) });
+        if (i >= 0) L.care[i] = Object.assign(L.care[i], row); else L.care.unshift(row);
+      }
+      return done({ ok: true, saved, role });
+    }
+    if (name === 'rc/care') return json({ now, care: L.care.filter(x => !x.deleted) });
+    if (name === 'rc/stn') {
+      if (!(init && init.body)) return json({ now, codes: L.codes, rows: L.stn });
+      if (b.codes) { L.codes = b.codes; return done({ ok: true, codes: L.codes }); }
+      if (b.request) { const r = L.stn.find(x => x.id === b.request); if (r) Object.assign(r, { state: b.state, st_t: now, updated: now }); return done({ ok: true }); }
+      if (b.hold) { (b.posts || ['*']).forEach((p, k) => L.stn.unshift({ id: k ? b.hold + '-' + k : b.hold, post: p, kind: 'hold', hold: b.hold, text: txt(b.text, 300), posts: b.posts, who: txt(b.who, 40), t: now, updated: now })); return done({ ok: true }); }
+      if (b.release) { L.stn.unshift({ id: 'r' + now.toString(36), post: '*', kind: 'release', hold: b.release, who: txt(b.who, 40), t: now, updated: now }); return done({ ok: true }); }
+      return json({ error: 'Bad request' }, 400);
+    }
+    return json({ error: 'Not in the practice mode' }, 404);
+  }
   function liveStore() {
     let v = null; try { v = JSON.parse(localStorage.getItem(LIVE_KEY) || 'null'); } catch (e) { }
     // A new demo day starts clean.
@@ -404,8 +520,9 @@
   function drawBar() {
     if (!bar) return;
     const s = simNow();
-    bar.querySelector('#demoClock').textContent = s >= 0 ? `${mins(s)} into the Miler` : `${mins(-s)} before the Miler starts`;
-    bar.querySelector('#demoIn').textContent = `Miler start ${HM.format(new Date(realOf(0)))}${seg().v !== 1 ? seg().v ? `, running at ${seg().v}x` : ', paused' : ''}`;
+    const lab = GEN ? 'the ' + MAIN : 'the Miler';
+    bar.querySelector('#demoClock').textContent = s >= 0 ? `${mins(s)} into ${lab}` : `${mins(-s)} before ${lab} starts`;
+    bar.querySelector('#demoIn').textContent = `${GEN ? MAIN : 'Miler'} start ${HM.format(new Date(realOf(0)))}${seg().v !== 1 ? seg().v ? `, running at ${seg().v}x` : ', paused' : ''}`;
     bar.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', +b.dataset.v === seg().v));
     if (!list.hidden) drawList();
   }
@@ -414,7 +531,7 @@
     const now = simNow(), canFind = !!(window.GPT_UI || window.GPTMapPage || (window.GPTField && GPTField.show));
     const rows = RUN.filter(r => r.kase).sort((a, b) => a.tCase - b.tCase).map(r => {
       const when = r.tCase === Infinity ? '' : r.tCase <= now ? ` at km ${r.caseKm}, ${mins(now - r.tCase)} ago` : ` at km ${r.caseKm}, in ${mins(r.tCase - now)}`;
-      return `<div class="row"><span><b>Bib ${r.bib}</b> ${esc(r.name)}${r.contest !== 'GPT100 Miler' ? ` (${esc(r.contest)})` : ''}<span class="sub">${NOTE[r.kase]}${when}</span></span>${canFind ? `<button class="btn small trk-go" type="button" data-bib="${r.bib}">Find</button>` : ''}</div>`;
+      return `<div class="row"><span><b>Bib ${r.bib}</b> ${esc(r.name)}${r.contest !== MAIN ? ` (${esc(r.contest)})` : ''}<span class="sub">${NOTE[r.kase]}${when}</span></span>${canFind ? `<button class="btn small trk-go" type="button" data-bib="${r.bib}">Find</button>` : ''}</div>`;
     });
     list.innerHTML = `<h3>Who to find in the demo</h3><p class="muted">${R.runners.length} made-up runners (${Object.keys(R.contests).join(' and ')}). These ones have something going on; everyone else is running normally.</p>` + rows.join('') +
       '<p class="muted">The Control board has their incidents, and more come in as the race runs.</p>' +

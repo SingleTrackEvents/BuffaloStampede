@@ -82,8 +82,42 @@
     s4: ['s4', 's4', 'Stage 4'], '33k': ['s4', 's4', '33k'], '14k': ['', '14k', '14k', '14k'], '6k': ['', '6k', '6k', '14k'], '5k': null, '2k': null, fun: null };
   // The race a contest name means: "GPT100 Solo/Pairs" the Miler, "GPT50K" the 50k, "Stage 2" or "GPT Stage 2" stage 2,
   // "GPT33K", "GPT14K", "GPT6K" and so on. '' when it can't tell (shown in the status line, never taken as the Miler).
+  // Any other event (Buffalo): its races come from its own races.js. A contest is the race whose distance or name it
+  // carries ("100k", "Teams Relay", "SkyMarathon 42k", "Twilight 10k"); a slam (several stages) is 'stage', the race
+  // under way that day. A race whose course isn't in the app (the 5k, the kids' 2k) isn't tracked.
+  const generic = () => { const R = window.GPT_RACES; return !!(R && R.stages && !R.stages.miler && !R.stages.s1); };
+  let gtable = null;
+  function genericTable() {
+    if (gtable) return gtable;
+    const R = window.GPT_RACES, ids = Object.keys(R.stages), main = G.id;
+    const t = {};
+    ids.forEach(id => {
+      const st = R.stages[id], race = (R.races || []).find(r => r.stages.length === 1 && r.stages[0] === id);
+      const onMain = !st.course || st.course === main || st.course === '100', other = !onMain && G.courses && G.courses.find(c => c.id === st.course);
+      t[id] = onMain || other ? ['', id, race ? race.short : st.label].concat(other ? [st.course] : []) : null;
+    });
+    return gtable = t;
+  }
+  function genericKey(s) {
+    const R = window.GPT_RACES, T_ = genericTable(), ids = Object.keys(R.stages);
+    // A slam or stage race first: its contest is every stage, taken as the one under way.
+    const multi = (R.races || []).filter(r => r.stages.length > 1), mr = multi.find(r => toks(r.short).every(w => s.includes(w)));
+    if (mr) return 'stage:' + mr.id;
+    if (/\b(slam|stage|multi)\b/.test(s)) return 'stage';
+    if (/\b(relay|team|teams)\b/.test(s)) return ids.find(id => /100/.test(id)) || ids[0];
+    let m;
+    for (const re of [/\b(\d{1,3}) ?(?:k|km)\b/, /\b(\d{1,3})\b/]) if ((m = s.match(re))) { const id = ids.find(id => parseInt(id, 10) === +m[1]); if (id) return id; }
+    // A race's own words ("SkyMarathon", "SkyRun", "Twilight").
+    // A race's own words ("SkyMarathon", "SkyRun", "Twilight"), not ones every race shares ("Buffalo Stampede").
+    const single = (R.races || []).filter(r => r.stages.length === 1), words = r => toks(r.label).filter(x => !/^\d/.test(x) && x.length > 3);
+    const common = w => single.filter(r => words(r).includes(w)).length > 1;
+    for (const r of single) if (words(r).some(x => !common(x) && s.replace(/ /g, '').includes(x))) return r.stages[0];
+    if (/\b(fun|family|kids?|junior|mini)\b/.test(s)) return 'fun';
+    return T_ && '';
+  }
   function keyOf(name) {
     const s = String(name || '').toLowerCase().replace(/(\d)(?=[a-z])|([a-z])(?=\d)/g, '$1$2 ').replace(/[^a-z0-9]+/g, ' ').replace(/\b20\d\d\b/g, ' ').trim();
+    if (generic()) return genericKey(s);
     let m;
     if ((m = s.match(/\b(?:stage|day|leg|st|s) ?([1-4])\b/))) return 's' + m[1];
     if (/\bstage/.test(s)) return 'stage';
@@ -97,12 +131,12 @@
   function contestOf(raw, now) {
     const s = String(raw == null ? '' : raw).trim(), O = T.chipContests || {}, o = O[s] != null ? O[s] : O[s.toLowerCase()];
     let key = o != null ? (/^(none|skip|ignore|-)?$/i.test(String(o).trim()) ? 'fun' : keyOf(o)) : keyOf(s);
-    const stageless = key === 'stage';
-    if (stageless) key = stageNow(now);
+    const stageless = /^stage/.test(key);
+    if (stageless) key = stageNow(now, key.split(':')[1]);
     return Object.assign(contestFor(key, s), stageless ? { stageless } : {});
   }
   function contestFor(key, name) {
-    const d = RACE[key];
+    const d = generic() ? (key === 'fun' ? null : genericTable()[key]) : RACE[key];
     if (d === undefined || key === '') return { key: '', name };
     if (!d) return { key, name, off: true };
     const R = window.GPT_RACES, st = R && R.stages && R.stages[d[1]], first = st && st.points && st.points[0] && st.points[0].first;
@@ -114,6 +148,7 @@
   // stops two stages share. Without one: null, and the stage under way is taken.
   const STAGES = ['s1', 's2', 's3', 's4'];
   function stageOfReads(reads) {
+    if (generic()) return null;
     let k = -1;
     for (const rd of reads) {
       if (!rd.c) continue;
@@ -124,10 +159,11 @@
     return k < 0 ? null : STAGES[k];
   }
   // A stage race contest with no stage number: the stage under way (the last to have started, or about to).
-  function stageNow(now) {
-    const R = window.GPT_RACES, S_ = R && R.stages;
-    let k = 's1';
-    for (const s of ['s1', 's2', 's3', 's4']) { const f = S_ && S_[s] && S_[s].points[0].first; if (f && Date.parse(f + ':00+11:00') <= now + 3 * 3600e3) k = s; }
+  function stageNow(now, raceId) {
+    const R = window.GPT_RACES, S_ = R && R.stages, own = raceId && (R.races || []).find(r => r.id === raceId);
+    const list = generic() ? (own ? own.stages : Object.keys(S_)).filter(id => genericTable()[id]).sort((a, b) => S_[a].points[0].first.localeCompare(S_[b].points[0].first)) : ['s1', 's2', 's3', 's4'];
+    let k = list[0];
+    for (const s of list) { const f = S_ && S_[s] && S_[s].points[0].first; if (f && Date.parse(f + ':00+11:00') <= now + 3 * 3600e3) k = s; }
     return k;
   }
   // Midnight (Melbourne) at the start of a day, from '2026-11-06' or '2026-11-06T08:00'; tracking.chipDay ('YYYY-MM-DD'
@@ -348,7 +384,8 @@
         // An In and an Out read at the same aid station are the same spot. Otherwise, a stop the course passes
         // twice (the out and back at Jimmy Creek) is the first passing not yet behind them.
         const io = inOut(rd.label);
-        let km = io.dir && kmOfBase.has(io.base) ? kmOfBase.get(io.base) : (p.kms.find(k => k > lastKm + 0.2) ?? p.kms[p.kms.length - 1]);
+        // (An Out read goes with its In; an In read is a new passing: Clearspot2In is the way back.)
+        let km = io.dir === 'out' && kmOfBase.has(io.base) ? kmOfBase.get(io.base) : (p.kms.find(k => k > lastKm + 0.2) ?? p.kms[p.kms.length - 1]);
         if (io.dir) kmOfBase.set(io.base, km);
         lastKm = Math.max(lastKm, km);
         out.push({ name: p.name + (io.dir === 'out' ? ' (out)' : ''), km, t: rd.t });
@@ -438,5 +475,5 @@
       (S.undated ? `. The race start days didn't load, so times of day are taken as the latest such time` : '') + '.';
   }
   function onUpdate(fn) { S.listeners.push(fn); if (S.ready || S.off) fn(); }
-  window.GPTTiming = { state: S, ready: () => S.ready, on: () => !S.off, byBib, runners: () => [...S.runners.values()], points: () => S.points, pointsAfter, status, onUpdate, hm, when, clock, keyOf, contestOf, score, norm, ageCat };
+  window.GPTTiming = { generic, state: S, ready: () => S.ready, on: () => !S.off, byBib, runners: () => [...S.runners.values()], points: () => S.points, pointsAfter, status, onUpdate, hm, when, clock, keyOf, contestOf, score, norm, ageCat };
 })();
