@@ -1047,3 +1047,16 @@ body.on-rc .foot { display: none; }
 @media (prefers-reduced-motion: reduce) { .cas-ring { animation: none; transform: scale(1.2); opacity: .8; } }
 .leaflet-tooltip.cas-tip { background: #111; color: #fff; border: 2px solid #ffd21f; font-weight: 700; font-size: 13px; padding: 3px 8px; border-radius: 6px; box-shadow: 0 1px 6px rgba(0,0,0,.5); }
 .leaflet-tooltip-top.cas-tip::before { border-top-color: #ffd21f; }
+
+/* ---------- The event picker (js/event.js): the event's short name beside the logo, and the list of events ---------- */
+.st-evbtn { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 16px; font: 600 12px Montserrat, sans-serif; padding: 4px 10px; margin-left: 8px; cursor: pointer; white-space: nowrap; }
+.st-evbtn:hover, .st-evbtn:focus-visible { background: rgba(255,255,255,.18); }
+.st-evdlg { border: 0; border-radius: 14px; padding: 18px; width: min(420px, calc(100vw - 32px)); background: var(--paper, #fff); color: var(--ink, #111); box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+.st-evdlg::backdrop { background: rgba(0,0,0,.5); }
+.st-evdlg h2 { margin: 0 0 8px; }
+.st-evdlg h3 { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+.st-evrow { display: block; width: 100%; text-align: left; background: transparent; color: inherit; border: 1px solid var(--line, #ddd); border-radius: 10px; padding: 10px 12px; margin: 0 0 8px; cursor: pointer; font: inherit; }
+.st-evrow b { display: block; font-size: 15px; }
+.st-evrow span { font-size: 13px; opacity: .75; }
+.st-evrow.on { border: 2px solid var(--gold, #f2a531); }
+.st-evclose { margin-top: 6px; }

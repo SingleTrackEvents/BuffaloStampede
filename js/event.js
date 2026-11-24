@@ -9,6 +9,9 @@
 //   ST.has('medical')      whether this event switches a module on.
 //   ST.app('Field')        this event's name for one of the apps ("Buffalo Stampede Field").
 //   ST.hq                  the event's own name for its control room ("Event HQ", "Race Control", "Race HQ").
+//   data-module="medical"  on any element: shown only for an event that switches that module on.
+// Every page gets an event button in its header (the event's short name): it lists the events, coming up first, and
+// opens the same page for the one picked.
 // Nothing here names any event but the one picked: each event keeps its own name, logo, icon and install file.
 (function () {
   const EVENTS = window.ST_EVENTS || [], KEY = 'stEvent', DAY = 864e5;
@@ -48,5 +51,30 @@
     document.querySelectorAll('a.brand').forEach(a => a.setAttribute('aria-label', ev.name + ' ' + NAMES[kind]));
     document.querySelectorAll('[data-st-name]').forEach(el => { el.textContent = ev.name + ' ' + el.getAttribute('data-st-name'); });
     document.title = document.title.replace(/^SingleTrack\b/, ev.name);
+    document.querySelectorAll('[data-module]').forEach(el => { if (!window.ST.has(el.getAttribute('data-module'))) { el.hidden = true; el.style.display = 'none'; } });
+    picker();
   });
+  // ---------- the event picker ----------
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const dates = e => { const f = new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Australia/Melbourne' }), a = new Date(e.from + 'T12:00:00+11:00'), b = new Date(e.to + 'T12:00:00+11:00');
+    return e.from === e.to ? f.format(a) : a.getMonth() === b.getMonth() ? a.getDate() + ' to ' + f.format(b) : f.format(a) + ' to ' + f.format(b); };
+  function picker() {
+    const top = document.querySelector('header.top .brand');
+    if (!top || EVENTS.length < 2 || document.getElementById('stEvBtn')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.id = 'stEvBtn'; btn.className = 'st-evbtn'; btn.setAttribute('aria-haspopup', 'dialog');
+    btn.innerHTML = esc(ev.short || ev.name) + ' <span aria-hidden="true">▾</span>'; btn.title = 'Change event';
+    top.after(btn);
+    btn.addEventListener('click', () => {
+      const now = Date.now(), on = EVENTS.filter(e => end(e) + 3 * DAY > now), past = EVENTS.filter(e => end(e) + 3 * DAY <= now).reverse();
+      const row = e => `<button type="button" class="st-evrow${e.id === ev.id ? ' on' : ''}" data-id="${esc(e.id)}"><b>${esc(e.name)}</b><span>${esc(e.place || '')} · ${esc(dates(e))}</span></button>`;
+      const d = document.createElement('dialog');
+      d.className = 'st-evdlg';
+      d.innerHTML = `<h2>Events</h2>${on.length ? '<h3>Coming up</h3>' + on.map(row).join('') : ''}${past.length ? '<h3>Past events</h3>' + past.map(row).join('') : ''}<button type="button" class="btn st-evclose">Close</button>`;
+      document.body.appendChild(d);
+      d.addEventListener('click', e => { const r = e.target.closest('.st-evrow'); if (r) { if (r.dataset.id !== ev.id) window.ST.pick(r.dataset.id); else d.close(); } else if (e.target.closest('.st-evclose') || e.target === d) d.close(); });
+      d.addEventListener('close', () => d.remove());
+      d.showModal();
+    });
+  }
 })();

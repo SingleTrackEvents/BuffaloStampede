@@ -350,7 +350,8 @@
     if (findLayer) { findLayer.remove(); findLayer = null; }
     // Safety Officer posts are public (data/safety-officers.js); the unlocked plan has the same posts.
     const src = P || SO;
-    if (!src) { if (soKey) { soKey.remove(); soKey = null; } return; }
+    // (No key for an event with no posts set up yet.)
+    if (!src || !(src.posts || []).length) { if (soKey) { soKey.remove(); soKey = null; } return; }
     if (!T0) T0 = new Date(src.t0);
     if (!soKey) {
       soKey = L.control({ position: 'bottomright' });
