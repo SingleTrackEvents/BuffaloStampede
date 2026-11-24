@@ -357,7 +357,7 @@ async function raceControl(req, env, url, c, ctx) {
     if (body.codes && typeof body.codes === 'object') {
       const c = {};
       for (const [k, v] of Object.entries(body.codes).slice(0, 40)) { const code = clip(String(v || ''), 12).toUpperCase(); if (/^[A-Z0-9]{4,12}$/.test(code)) c[clip(k, 60)] = code; }
-      await db.batch([setSetting(db, 'stn_codes', JSON.stringify(c), now), addLog(null, 'station', 'Station codes issued for ' + Object.keys(c).length + ' stations')]);
+      await db.batch([setSetting(db, 'stn_codes', JSON.stringify(c), now), addLog(null, 'station', 'Station codes issued for ' + Object.keys(c).length + ' places')]);
       return json({ ok: true, codes: c });
     }
     if (body.request) {
@@ -795,27 +795,64 @@ async function liveApi(req, env, url, c, ctx) {
 
   // ---------- aid stations, from the Aid Station Manager's phone ----------
   if (path === '/stn/in' || path === '/stn/add' || path === '/stn/list') {
-    const codes = JSON.parse((await getSetting(db, 'stn_codes')) || '{}'), code = txt(b.code, 20).toUpperCase();
-    const post = Object.keys(codes).find(p => code && sameText(code, String(codes[p]).toUpperCase()));
-    if (!post) { await allow(db, 'code:' + ip, 12, 10 * 60e3); return json({ error: Object.keys(codes).length ? 'That station code isn\'t right' : hqName(env) + ' hasn\'t issued station codes yet' }, 401); }
+    // The manager picks where they are (a station, or Yard for the yard and logistics team), then enters that place's code.
+    const codes = JSON.parse((await getSetting(db, 'stn_codes')) || '{}'), code = txt(b.code, 20).toUpperCase(), want = txt(b.post, 60);
+    const post = want ? (codes[want] && code && sameText(code, String(codes[want]).toUpperCase()) ? want : null) : Object.keys(codes).find(p => code && sameText(code, String(codes[p]).toUpperCase()));
+    if (!post) { await allow(db, 'code:' + ip, 12, 10 * 60e3); return json({ error: !Object.keys(codes).length ? hqName(env) + ' hasn\'t issued station codes yet' : want && !codes[want] ? hqName(env) + ' hasn\'t issued a code for ' + want + ' yet' : 'That code isn\'t right for ' + (want || 'any station') }, 401); }
+    const yard = post === 'Yard';
     if (path === '/stn/in') return json({ ok: true, post });
     if (path === '/stn/list') {
-      const r = await db.prepare("SELECT id, post, kind, data, who, t, updated FROM stn WHERE (post = ?1 OR post = '*' OR kind IN ('hold', 'release')) AND t > ?2 ORDER BY t DESC LIMIT 300").bind(post, now - 36 * 3600e3).all();
+      // The yard sees every station; a station sees its own rows, holds and releases.
+      const r = yard ? await db.prepare('SELECT id, post, kind, data, who, t, updated FROM stn WHERE t > ?1 ORDER BY t DESC LIMIT 2000').bind(now - 36 * 3600e3).all()
+        : await db.prepare("SELECT id, post, kind, data, who, t, updated FROM stn WHERE (post = ?1 OR post = '*' OR kind IN ('hold', 'release')) AND t > ?2 ORDER BY t DESC LIMIT 400").bind(post, now - 36 * 3600e3).all();
       const rows = r.results.map(x => Object.assign(JSON.parse(x.data), { id: x.id, post: x.post, kind: x.kind, who: x.who, t: x.t, updated: x.updated }))
-        .filter(x => x.kind !== 'hold' || x.post === '*' || x.post === post);
+        .filter(x => yard || x.kind !== 'hold' || x.post === '*' || x.post === post);
       return json({ now, post, rows });
     }
-    if (!(await allow(db, 'stn:' + ip, 200, 60 * 60e3))) return json({ error: 'Too many entries from this phone. Wait a while.' }, 429);
+    if (!(await allow(db, 'stn:' + ip, 400, 60 * 60e3))) return json({ error: 'Too many entries from this phone. Wait a while.' }, 429);
     const ops = [], saved = [], tm = t => new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
     const LV = ['green', 'amber', 'red'];
     for (const e of (Array.isArray(b.entries) ? b.entries : [b.entry]).slice(0, 30)) {
       if (!e || typeof e !== 'object') continue;
-      const id = txt(e.id, 40), kind = ['report', 'request', 'holdack', 'handover'].includes(e.kind) ? e.kind : null;
+      const KINDS = yard ? ['stock', 'run', 'runstate', 'reqstate', 'trigger', 'handover'] : ['report', 'request', 'holdack', 'handover', 'stock', 'runstate'];
+      const id = txt(e.id, 40), kind = KINDS.includes(e.kind) ? e.kind : null;
       if (!/^[A-Za-z0-9-]{8,40}$/.test(id) || !kind) continue;
       if (await db.prepare('SELECT id FROM stn WHERE id = ?1').bind(id).first()) { saved.push(id); continue; }
       const t = Math.min(now, num(e.t, 0, 1e14) || now), who = txt(e.who, 40);
-      let d, text;
-      if (kind === 'report') {
+      let d, text, at = post;
+      const LVL = ['plenty', 'half', 'low', 'out'], RUN = yard ? ['loaded', 'onway', 'delivered'] : ['received'];
+      if (kind === 'stock') {
+        // A stocktake: each item's level (and a count where given). The yard says which of its places it counted.
+        const levels = {}, counts = {};
+        for (const [k, v] of Object.entries(e.levels || {}).slice(0, 80)) if (/^[a-z0-9-]{1,40}$/.test(k) && LVL.includes(v)) levels[k] = v;
+        for (const [k, v] of Object.entries(e.counts || {}).slice(0, 80)) { const n = num(v, 0, 1e6); if (/^[a-z0-9-]{1,40}$/.test(k) && n != null) counts[k] = n; }
+        if (!Object.keys(levels).length) continue;
+        d = { levels, counts, loc: yard ? txt(e.loc, 60) : '', names: Object.fromEntries(Object.entries(e.names || {}).slice(0, 80).map(([k, v]) => [k, txt(v, 40)])) };
+        const nm = k => d.names[k] || k, low = Object.keys(levels).filter(k => levels[k] === 'low'), out = Object.keys(levels).filter(k => levels[k] === 'out');
+        text = (yard ? 'Yard stocktake' + (d.loc ? ' (' + d.loc + ')' : '') : post + ' stocktake') + ': ' + (out.length ? 'out of ' + out.map(nm).join(', ') : '') + (out.length && low.length ? '; ' : '') + (low.length ? 'low on ' + low.map(nm).join(', ') : '') + (!out.length && !low.length ? 'all good' : '');
+      } else if (kind === 'run') {
+        // A restock run from the yard to a station: what, who drives, which vehicle, when it should get there.
+        at = txt(e.to, 60); if (!at) continue;
+        d = { to: at, items: (Array.isArray(e.items) ? e.items : []).slice(0, 40).map(x => ({ id: txt(x.id, 40), name: txt(x.name, 40), qty: num(x.qty, 0, 1e6) || 0, unit: txt(x.unit, 30) })).filter(x => x.name),
+          driver: txt(e.driver, 40), vehicle: txt(e.vehicle, 40), eta: num(e.eta, 0, 1e14) || null, note: txt(e.note, 300), trigger: txt(e.trigger, 40) };
+        if (!d.items.length) continue;
+        text = 'Restock run to ' + at + ': ' + d.items.map(x => (x.qty ? x.qty + ' ' : '') + x.name).join(', ') + (d.driver ? ', ' + d.driver : '') + (d.vehicle ? ' (' + d.vehicle + ')' : '') + (d.eta ? ', due ' + tm(d.eta) : '');
+      } else if (kind === 'runstate') {
+        const run = await db.prepare("SELECT post, data FROM stn WHERE id = ?1 AND kind = 'run'").bind(txt(e.run, 40)).first();
+        if (!run || !RUN.includes(e.state) || (!yard && run.post !== post)) continue;
+        at = run.post; d = { run: txt(e.run, 40), state: e.state };
+        text = 'Restock run to ' + at + ' ' + { loaded: 'loaded', onway: 'on the way', delivered: 'delivered', received: 'received at the station' }[e.state];
+      } else if (kind === 'reqstate') {
+        const rq = await db.prepare("SELECT post, data FROM stn WHERE id = ?1 AND kind = 'request'").bind(txt(e.request, 40)).first();
+        if (!rq || !['onway', 'done'].includes(e.state)) continue;
+        at = rq.post; d = { request: txt(e.request, 40), state: e.state };
+        // The request itself carries the answer, as when Event HQ answers it, so the station and HQ both see it.
+        ops.push(db.prepare('UPDATE stn SET data = ?2, updated = ?3 WHERE id = ?1').bind(d.request, JSON.stringify(Object.assign(JSON.parse(rq.data), { state: e.state, st_t: now, by: who || 'Yard' })), now));
+        text = at + ': ' + (JSON.parse(rq.data).items || []).join(', ') + (e.state === 'onway' ? ' on its way (yard)' : ' done (yard)');
+      } else if (kind === 'trigger') {
+        d = { trigger: txt(e.trigger, 40), name: txt(e.name, 60) }; if (!d.trigger) continue;
+        text = 'Restock trigger done: ' + (d.name || d.trigger);
+      } else if (kind === 'report') {
         d = { type: ['open', 'status', 'close'].includes(e.type) ? e.type : 'status', stock: LV.includes(e.stock) ? e.stock : 'green', staff: LV.includes(e.staff) ? e.staff : 'green', crowd: LV.includes(e.crowd) ? e.crowd : 'green', note: txt(e.note, 300) };
         const worst = ['red', 'amber', 'green'].find(l => [d.stock, d.staff, d.crowd].includes(l));
         text = post + (d.type === 'open' ? ' open' : d.type === 'close' ? ' closed' : ' report') + ': ' + (worst === 'green' ? 'all good' : ['stock', 'staff', 'crowd'].filter(k => d[k] !== 'green').map(k => k + ' ' + d[k]).join(', ')) + (d.note ? ' (' + d.note + ')' : '');
@@ -826,8 +863,8 @@ async function liveApi(req, env, url, c, ctx) {
       } else if (kind === 'holdack') {
         d = { hold: txt(e.hold, 40) }; text = post + ' is holding runners';
       } else { d = { note: txt(e.note, 1000) }; if (!d.note) continue; text = post + ' handover: ' + d.note.slice(0, 160); }
-      ops.push(db.prepare('INSERT INTO stn (id, post, kind, data, who, t, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)').bind(id, post, kind, JSON.stringify(d), who, t, now));
-      ops.push(db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, NULL, ?2, ?3, ?4, ?1)').bind(now, 'station', text + ' at ' + tm(t), who || post));
+      ops.push(db.prepare('INSERT INTO stn (id, post, kind, data, who, t, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)').bind(id, at, kind, JSON.stringify(d), who, t, now));
+      ops.push(db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, NULL, ?2, ?3, ?4, ?1)').bind(now, yard ? 'yard' : 'station', text + ' at ' + tm(t), who || post));
       saved.push(id);
     }
     if (ops.length) await db.batch(ops);

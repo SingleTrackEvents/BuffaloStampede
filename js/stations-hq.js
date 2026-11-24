@@ -4,7 +4,8 @@
 //   Holds      call a hold at every station or chosen ones, see each station confirm, and release it.
 //   Stations   each station's session now, its last report (stock, staff, crowding and note), and REPORT OVERDUE when
 //              an open station hasn't reported for 2 hours or hasn't opened 15 minutes into its session.
-//   Codes      the station code each Aid Station Manager signs in with (one per station, issued here).
+//   Stocktake  each station's latest stocktake (Low and Out), and restock runs from the yard and where they're up to.
+//   Codes      the code each Aid Station Manager signs in with (one per station, issued here), and the yard's.
 // Unlocked with the staff password (the same as Control).
 (function () {
   const $ = id => document.getElementById(id), box = $('stnHqBody');
@@ -16,7 +17,15 @@
   const mel = s => s ? Date.parse(s + ':00+11:00') : null;
   const pw = () => window.MedPlan && window.MedPlan.pw && window.MedPlan.pw();
   const who = () => { try { return localStorage.getItem('st_rc_name') || ''; } catch (e) { return ''; } };
+  const SK = window.ST_STOCK || null, NM = SK ? Object.fromEntries(SK.items.map(i => [i.id, i.name])) : {};
   const STATIONS = [...new Set((P.aid || []).map(s => s.name))];
+  // Everywhere that signs in to the Station tab: the stations, any stocked place that isn't an aid station, and the yard.
+  const PLACES = [...new Set(STATIONS.concat(SK ? Object.keys(SK.stations) : []))].concat(SK ? ['Yard'] : []);
+  const RUNS = { planned: 'Being packed', loaded: 'Loaded', onway: 'On the way', delivered: 'Delivered', received: 'Received' };
+  const runState = r => { const s = rows.filter(x => x.kind === 'runstate' && x.run === r.id).sort((a, b) => b.t - a.t)[0]; return s ? s.state : 'planned'; };
+  const lastStock = p => rows.filter(x => x.kind === 'stock' && x.post === p).sort((a, b) => b.t - a.t)[0];
+  const lowOut = x => { if (!x) return ''; const o = Object.keys(x.levels).filter(k => x.levels[k] === 'out').map(k => NM[k] || k), l = Object.keys(x.levels).filter(k => x.levels[k] === 'low').map(k => NM[k] || k);
+    return (o.length ? '<b class="care-hq-bad">Out: ' + esc(o.join(', ')) + '</b> ' : '') + (l.length ? 'Low: ' + esc(l.join(', ')) : '') + (!o.length && !l.length ? 'All good' : ''); };
   const LV = { green: 'Good', amber: 'Getting low', red: 'Need help now' };
   let rows = [], codes = {}, shown = false, timer = null, err = '', holdPick = null, showCodes = false;
 
@@ -59,14 +68,17 @@
       ${H.map(h => `<div class="sh-hold"><b>HOLD</b> since ${esc(hm(h.t))}${h.who ? ' (' + esc(h.who) + ')' : ''}: ${esc(h.text)}<ul>${h.list.map(x => `<li class="${x.ack ? 'ok' : 'wait'}">${esc(x.p)}: ${x.ack ? 'holding, confirmed ' + esc(hm(x.ack.t)) : 'not confirmed yet'}</li>`).join('')}</ul><button class="btn small" data-rel="${esc(h.hold)}" type="button">Release the hold</button></div>`).join('')}
       <section class="rk-box"><h3>Requests${reqs.length ? ' (' + reqs.length + ')' : ''}</h3>${reqs.length ? `<ul class="rk-list">${reqs.map(r => `<li><b>${esc(r.post)}</b>: ${esc(r.items.join(', ') || 'request')}${r.note ? ' (' + esc(r.note) + ')' : ''}<small>Asked ${esc(hm(r.t))}${r.who ? ' by ' + esc(r.who) : ''}${r.state === 'onway' ? ' · on its way since ' + esc(hm(r.st_t)) : ''}</small>
         ${r.state !== 'onway' ? `<button class="btn small" data-req="${esc(r.id)}" data-s="onway" type="button">On its way</button>` : ''}<button class="btn small" data-req="${esc(r.id)}" data-s="done" type="button">Done</button></li>`).join('')}</ul>` : '<p class="muted">Nothing waiting.</p>'}</section>
-      <table class="care-hq-t sh-t"><thead><tr><th>Station</th><th>Session</th><th>Last report</th><th>Stock</th><th>Staff</th><th>Crowding</th></tr></thead><tbody>
+      <table class="care-hq-t sh-t"><thead><tr><th>Station</th><th>Session</th><th>Last report</th><th>Stock</th><th>Staff</th><th>Crowding</th>${SK ? '<th>Stocktake</th>' : ''}</tr></thead><tbody>
       ${st.map(s => `<tr class="${s.overdue ? 'late' : ''}"><td><b>${esc(s.post)}</b>${s.overdue ? '<small class="care-hq-bad">Report overdue</small>' : ''}${hand(s.post) ? `<small title="${esc(hand(s.post).note)}">Handover ${esc(hm(hand(s.post).t))}</small>` : ''}</td>
         <td>${s.now ? esc(hm(s.now.a)) + ' to ' + esc(hm(s.now.z)) : s.next ? 'Next ' + esc(hm(s.next.a)) : 'Done'}</td>
         <td>${s.last ? esc(hm(s.last.t)) + (s.last.type === 'open' ? ' (opened)' : s.last.type === 'close' ? ' (closed)' : '') + (s.last.note ? '<small>' + esc(s.last.note) + '</small>' : '') : '<span class="muted">None</span>'}</td>
-        ${['stock', 'staff', 'crowd'].map(k => `<td>${s.last ? `<span class="sh-lv ${s.last[k]}">${LV[s.last[k]] || ''}</span>` : ''}</td>`).join('')}</tr>`).join('')}</tbody></table>
-      <section class="rk-box"><h3>Station codes</h3><p class="muted">Each Aid Station Manager signs in to the field app's Station tab with their own station's code, and sees only that station. Give each manager only theirs.</p>
-        ${showCodes ? `<table class="care-hq-t"><tbody>${STATIONS.map(p => `<tr><td>${esc(p)}</td><td><b>${esc(codes[p] || 'not issued')}</b></td></tr>`).join('')}</tbody></table>` : ''}
-        <button class="btn small" id="shShow" type="button">${showCodes ? 'Hide codes' : 'Show codes'}</button> <button class="btn small" id="shIssue" type="button">${Object.keys(codes).length ? 'Issue codes for new stations' : 'Issue station codes'}</button></section></div>`;
+        ${['stock', 'staff', 'crowd'].map(k => `<td>${s.last ? `<span class="sh-lv ${s.last[k]}">${LV[s.last[k]] || ''}</span>` : ''}</td>`).join('')}${SK ? `<td>${lastStock(s.post) ? esc(hm(lastStock(s.post).t)) + '<small>' + lowOut(lastStock(s.post)) + '</small>' : '<span class="muted">None</span>'}</td>` : ''}</tr>`).join('')}</tbody></table>
+      ${SK ? (() => { const R = rows.filter(x => x.kind === 'run').sort((a, b) => b.t - a.t), live = R.filter(r => !['delivered', 'received'].includes(runState(r))), y = rows.filter(x => x.kind === 'stock' && x.post === 'Yard').sort((a, b) => b.t - a.t);
+        return `<section class="rk-box"><h3>Restock runs${live.length ? ' (' + live.length + ' out)' : ''}</h3><p class="muted">The yard builds and sends these from the field app's Station tab (Yard sign-in).</p>${R.length ? `<ul class="rk-list">${R.slice(0, 12).map(r => `<li><b>${esc(r.post)}</b>: ${esc(r.items.map(x => (x.qty ? x.qty + ' ' : '') + x.name).join(', '))}<small>${esc(RUNS[runState(r)])}${r.driver ? ' · ' + esc(r.driver) : ''}${r.vehicle ? ' (' + esc(r.vehicle) + ')' : ''}${r.eta ? ' · due ' + esc(hm(r.eta)) : ''} · sent ${esc(hm(r.t))}</small></li>`).join('')}</ul>` : '<p class="muted">No runs yet.</p>'}
+          ${y.length ? `<p class="muted">Yard stocktake: ${[...new Set(y.map(x => x.loc))].map(l => { const x = y.find(z => z.loc === l); return '<b>' + esc(l || 'Yard') + '</b> ' + esc(hm(x.t)) + ' ' + lowOut(x); }).join(' · ')}</p>` : ''}</section>`; })() : ''}
+      <section class="rk-box"><h3>Station codes</h3><p class="muted">Each Aid Station Manager picks their station on the field app's Station tab and signs in with its code, and sees only that station. Give each manager only theirs. The Yard code is for the yard and logistics team: it sees every station's stock.</p>
+        ${showCodes ? `<table class="care-hq-t"><tbody>${PLACES.map(p => `<tr><td>${esc(p)}</td><td><b>${esc(codes[p] || 'not issued')}</b></td></tr>`).join('')}</tbody></table>` : ''}
+        <button class="btn small" id="shShow" type="button">${showCodes ? 'Hide codes' : 'Show codes'}</button> <button class="btn small" id="shIssue" type="button">${PLACES.every(p => codes[p]) ? 'All codes issued' : Object.keys(codes).length ? 'Issue codes for new stations' : 'Issue station codes'}</button></section></div>`;
     bind();
   }
   function bind() {
@@ -74,7 +86,7 @@
     $('shShow').addEventListener('click', () => { showCodes = !showCodes; render(); });
     $('shIssue').addEventListener('click', async () => {
       const c = Object.assign({}, codes), A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      STATIONS.forEach(p => { if (!c[p]) c[p] = Array.from(crypto.getRandomValues(new Uint8Array(6)), b => A[b % A.length]).join(''); });
+      PLACES.forEach(p => { if (!c[p]) c[p] = Array.from(crypto.getRandomValues(new Uint8Array(6)), b => A[b % A.length]).join(''); });
       try { const j = await api('/rc/stn', { codes: c }); codes = j.codes; showCodes = true; render(); } catch (e) { err = e.message; render(); }
     });
     $('shHold').addEventListener('click', () => { holdPick = holdPick ? null : { posts: ['*'], text: 'Hold runners at your station until ' + ST.hq + ' releases the hold.' }; render(); });
