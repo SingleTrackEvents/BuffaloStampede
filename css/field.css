@@ -233,3 +233,6 @@ body.field .fd-rp .btn.small { min-height: 44px; }
 .fd-job .btn { border-color: #fff; background: transparent; color: #fff; }
 .fd-job .btn.primary { background: #fff; color: #b3261e; }
 .fd-job-err { margin: 4px 0 0; font-size: 13px; }
+.care-onpost { background: #e6f4ea; color: #1e4620; border-radius: 8px; padding: 8px 10px; }
+.care-onpost.off { background: #fff3cd; color: #5c4400; }
+.care-onpost .btn { margin-left: 6px; }

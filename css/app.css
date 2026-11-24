@@ -1088,3 +1088,13 @@ body.on-rc .foot { display: none; }
 .hq-tr .btn { margin-left: 6px; }
 .hq-choose { margin: 6px 0; padding: 8px; border: 2px dashed var(--line); border-radius: 8px; }
 .hq-choose .btn { margin: 3px 4px 3px 0; }
+
+.care-hq-cover { margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.care-hq-cover summary { cursor: pointer; }
+.care-hq-cover summary h3 { display: inline; }
+.care-hq-bad { color: var(--red, #c0392b); }
+.care-hq-cover tr.late td { background: rgba(192,57,43,.12); }
+.care-hq-cover td small { display: block; opacity: .7; }
+.care-hq-plan { margin: 4px 0 8px; padding-left: 18px; }
+.care-hq-plan li { margin: 4px 0; }
+.care-hq-plan li.red { color: var(--red, #c0392b); font-weight: 600; }

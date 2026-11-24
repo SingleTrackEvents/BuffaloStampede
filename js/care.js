@@ -55,6 +55,13 @@
     });
     return out.sort((a, b) => (a.seen[0] || a).t - (b.seen[0] || b).t);
   }
+  // On post (cover, 3.4): this person's latest on or off. HQ sees who is actually on each post against the plan.
+  const myPost = () => { const e = all().filter(x => (x.kind === 'on' || x.kind === 'off') && x.who === me.who).sort((a, b) => b.t - a.t)[0]; return e && e.kind === 'on' ? e : null; };
+  function onPostLine() {
+    const o = myPost();
+    return o ? `<p class="care-onpost">On post at <b>${esc(o.post)}</b> since ${esc(tf.format(new Date(o.t)))}. <button type="button" class="btn small" id="careOff">Going off post</button></p>`
+      : `<p class="care-onpost off">Not on post. <button type="button" class="btn small" id="careOn">I'm on post here</button></p>`;
+  }
   const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min ago' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min ago'; };
 
   async function call(path, body) {
@@ -126,6 +133,7 @@
         <button class="btn primary" id="careFlag" type="button">Flag runner</button></details></section>`;
     box.innerHTML = watch + `<section class="fd-card"><h2>${med ? 'Medical log' : 'Log a withdrawal'}</h2>
       <p class="fd-hint">Signed in as <b>${esc(me.who)}</b> (${med ? 'Medical Team' : 'team code'}). <button type="button" class="linkbtn" id="careOut">Sign out</button></p>
+      ${onPostLine()}
       <label class="fd-label" for="carePost">Post</label><select id="carePost"><option value="">Choose your post</option>${POSTS.map(p => `<option${p.name === P ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
       ${navigator.geolocation ? '<button type="button" class="btn small" id="careHere">Nearest to me</button>' : ''}
       ${unsent}
@@ -138,6 +146,8 @@
       </section>
       <section class="fd-card"><h2>${P ? esc(P) : 'All posts'}</h2>${rows ? `<ul class="care-list">${rows}</ul>` : '<p class="fd-hint">Nothing logged here yet.</p>'}
       <button type="button" class="btn small" id="careRefresh">Refresh</button></section>`;
+    if ($('careOn')) $('careOn').addEventListener('click', () => { if (!post || post === 'On course') { say('Choose your post first.'); return; } add({ kind: 'on' }); render(); say('On post at ' + post + '. ' + ST.hq + ' can see you\'re here.'); });
+    if ($('careOff')) $('careOff').addEventListener('click', () => { const o = myPost(); if (!o || !confirm('Going off post at ' + o.post + '?')) return; add({ kind: 'off', post: o.post }); render(); say('Off post at ' + o.post + '.'); });
     $('careOut').addEventListener('click', () => { if (confirm('Sign out of the medical log on this phone?')) { me = { code: '', who: me.who, role: '' }; save('me', me); list = []; render(); } });
     $('carePost').addEventListener('change', e => { post = e.target.value; save('post', post); render(); });
     if ($('careHere')) $('careHere').addEventListener('click', () => navigator.geolocation.getCurrentPosition(p => {

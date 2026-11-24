@@ -36,6 +36,18 @@
       return Object.assign({ seen: rows.filter(x => x.kind === 'seen' && x.type === c.id).sort((a, b) => b.t - a.t) }, c);
     }).filter(Boolean).sort((a, b) => (a.seen[0] || a).t - (b.seen[0] || b).t);
   }
+  // Cover (3.4): who is on post now against the plan, and what the plan check finds against the races.
+  let coverOpen = false;
+  function coverHtml() {
+    const S = window.STCover; if (!S || !window.ST_COVER) return '';
+    const nowRows = S.now(rows), plan = S.plan(), late = nowRows.filter(r => r.late);
+    return `<details class="care-hq-cover"${coverOpen || late.length ? ' open' : ''}><summary><h3>Cover${late.length ? ' <span class="care-hq-bad">' + late.length + ' post' + (late.length > 1 ? 's' : '') + ' with nobody checked on</span>' : ''}${plan.length ? ' · ' + plan.length + ' to check in the plan' : ''}</h3></summary>
+      ${nowRows.length ? `<table class="care-hq-t"><thead><tr><th>Medical post now</th><th>Planned</th><th>On post</th></tr></thead><tbody>${nowRows.map(r => `<tr class="${r.late ? 'late' : ''}"><td>${esc(r.name)}<small> ${esc(r.crew || '')}</small></td><td>${esc(S.at(r.from))} to ${esc(S.at(r.to))}</td><td>${r.on.length ? r.on.map(o => esc(o.who) + ' (' + esc(o.post) + ', since ' + esc(tf.format(new Date(o.since))) + ')').join('<br>') : (r.late ? '<b>Nobody checked on</b>' : 'Not yet')}</td></tr>`).join('')}</tbody></table>`
+        : '<p class="muted">No medical posts planned for now. Medics and Safety Officers tap <b>I\'m on post here</b> on the field app\'s Log tab, and show here against the plan.</p>'}
+      <h4>The plan against the races</h4>
+      ${plan.length ? `<ul class="care-hq-plan">${plan.map(p => `<li class="${p.level}">${esc(p.text)}</li>`).join('')}</ul>` : '<p class="muted">Every post is covered from before its first runner to its cut-off.</p>'}
+      <p class="muted">From events/${esc(ST.event.id)}/cover.js (the Medical and Rescue Plan and the Aid Station Operation Plan) against each race's first runner and cut-off. Posts should open ${(window.ST_COVER.marginMin || 20)} minutes before the first runner.</p></details>`;
+  }
   const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; };
   function render() {
     if (!shown) return;
@@ -55,6 +67,7 @@
         ${C.length ? `<ul class="care-hq-list">${C.map(c => { const last = c.seen[0], since = (last || c).t, late = Date.now() - since > 3600e3;
           return `<li class="${late ? 'wd' : ''}"><b>Bib ${esc(c.bib)}</b> ${esc(c.reason || '')}<small>Flagged at ${esc(c.post || 'on course')}, ${esc(tf.format(new Date(c.t)))}${c.who ? ' by ' + esc(c.who) : ''}. ${last ? 'Last seen at ' + esc(last.post || 'on course') + ', ' + esc(tf.format(new Date(last.t))) + '.' : 'Not seen since.'} ${late ? '<b>Unseen for ' + ago(since) + '.</b>' : ago(since) + ' ago.'}</small></li>`; }).join('')}</ul>`
           : '<p class="muted">None. Posts flag them from the field app\'s Log tab, and every post watches for them.</p>'}</section>
+      ${coverHtml()}
       <div class="care-hq-cols">
         <section><h3>By post</h3>${by.length ? `<table class="care-hq-t"><thead><tr><th>Post</th><th>Seen</th><th>Minor</th><th>Withdrawn</th><th>Hospital</th><th>Last</th></tr></thead><tbody>${by.map(b => `<tr data-p="${esc(b.p)}" class="${b.p === filter ? 'on' : ''}"><td>${esc(b.p)}</td><td>${b.seen}</td><td>${b.minor}</td><td>${b.wd}</td><td>${b.hosp}</td><td>${esc(tf.format(new Date(b.last)))}</td></tr>`).join('')}</tbody></table><p class="muted">Tap a post to see only its entries.</p>` : '<p class="muted">Nothing logged yet.</p>'}
           <h3>Medical code</h3><p class="muted">The Medical Team signs in to the field app's Log tab with this. Safety Officers and Aid Station Managers use the team code (Control, Settings) and can log withdrawals only.</p>
@@ -63,6 +76,7 @@
           ${list.length ? `<ul class="care-hq-list">${list.map(x => `<li class="${isWd(x) ? 'wd' : ''}"><b>${esc(x.bib ? 'Bib ' + x.bib : 'No bib')}</b> ${x.kind === 'wd' ? 'Withdrawn' + (x.reason ? ': ' + esc(x.reason) : '') : esc(TYPES[x.type] || x.type || '') + ' · ' + esc(OUT[x.outcome] || '')}
             <small>${esc(tf.format(new Date(x.t)))} · ${esc(x.post || 'Not stated')}${x.who ? ' · ' + esc(x.who) : ''}</small></li>`).join('')}</ul>` : '<p class="muted">Nothing logged yet.</p>'}</section>
       </div></div>`;
+    const cv = box.querySelector('.care-hq-cover'); if (cv) cv.addEventListener('toggle', () => { coverOpen = cv.open; });
     $('chqRef').addEventListener('click', load);
     $('chqCsv').addEventListener('click', csv);
     if ($('chqAll')) $('chqAll').addEventListener('click', () => { filter = ''; render(); });

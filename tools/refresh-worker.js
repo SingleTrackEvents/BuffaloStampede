@@ -615,7 +615,7 @@ const LIVE_SCHEMA = [
   // The medical log (docs/MEDICAL_AND_RISK.md): every presentation, minor care count and withdrawal, logged once.
   // kind: med (seen by medical), minor (+1 band-aid or ice pack), wd (withdrawal with no medical presentation),
   // concern (a runner of concern flagged, with the reason), seen (that runner seen at a post: type holds the concern's
-  // id) and clear (the concern closed: type holds its id).
+  // id), clear (the concern closed: type holds its id), and on and off (on post and off post at post, for cover).
   // notes: clinical detail, kept only from a phone with the medical code, and only ever returned to one.
   'CREATE TABLE IF NOT EXISTS care (id TEXT PRIMARY KEY, kind TEXT NOT NULL, bib TEXT, name TEXT, race TEXT, post TEXT, type TEXT, outcome TEXT, reason TEXT, notes TEXT, who TEXT, role TEXT, t INTEGER NOT NULL, updated INTEGER NOT NULL, deleted INTEGER)',
   'CREATE INDEX IF NOT EXISTS care_updated ON care (updated)',
@@ -759,7 +759,7 @@ async function liveApi(req, env, url, c, ctx) {
     if (!(await allow(db, 'care:' + ip, 300, 60 * 60e3))) return json({ error: 'Too many entries from this phone. Wait a while.' }, 429);
     const list = (Array.isArray(b.entries) ? b.entries : [b.entry]).slice(0, 50).filter(e => e && typeof e === 'object');
     // The team code logs withdrawals and runners of concern; only the medical code logs care.
-    const KINDS = role === 'medical' ? ['med', 'minor', 'wd', 'concern', 'seen', 'clear'] : ['wd', 'concern', 'seen', 'clear'], OUT = ['continued', 'withdrawn', 'transported', ''];
+    const KINDS = role === 'medical' ? ['med', 'minor', 'wd', 'concern', 'seen', 'clear', 'on', 'off'] : ['wd', 'concern', 'seen', 'clear', 'on', 'off'], OUT = ['continued', 'withdrawn', 'transported', ''];
     const ops = [], saved = [];
     for (const e of list) {
       const id = txt(e.id, 40), kind = KINDS.includes(e.kind) ? e.kind : null, outcome = OUT.includes(e.outcome) ? e.outcome : '';
@@ -793,6 +793,12 @@ async function liveApi(req, env, url, c, ctx) {
           : kind === 'seen' ? 'Runner of concern: bib ' + bib + ' seen' + (post ? ' at ' + post : '') + ' at ' + tm
           : 'Runner of concern: bib ' + bib + ', all clear at ' + tm;
         ops.push(db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, NULL, ?2, ?3, ?4, ?1)').bind(now, 'concern', text, txt(e.who, 40) || role));
+      }
+      // On and off post (cover, 3.4): into HQ's log.
+      if (!del && !old && (kind === 'on' || kind === 'off')) {
+        const tm = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
+        ops.push(db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, NULL, ?2, ?3, ?4, ?1)').bind(now, 'cover',
+          (txt(e.who, 40) || 'Someone') + (role === 'medical' ? ' (medical)' : '') + (kind === 'on' ? ' on post at ' : ' off post at ') + (post || 'their post') + ' at ' + tm, txt(e.who, 40) || role));
       }
       saved.push(id);
     }
