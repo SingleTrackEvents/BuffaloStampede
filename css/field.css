@@ -236,3 +236,17 @@ body.field .fd-rp .btn.small { min-height: 44px; }
 .care-onpost { background: #e6f4ea; color: #1e4620; border-radius: 8px; padding: 8px 10px; }
 .care-onpost.off { background: #fff3cd; color: #5c4400; }
 .care-onpost .btn { margin-left: 6px; }
+
+/* ---------- Aid Station Manager (js/station.js) ---------- */
+.stn-in { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px; border: 2px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); margin: 6px 0; }
+#stnIn input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px; border: 2px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); margin-bottom: 6px; }
+.stn-t { width: 100%; border-collapse: collapse; font-size: 14px; margin: 6px 0; }
+.stn-t th, .stn-t td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.stn-t small { display: block; opacity: .75; }
+.stn-t tr.past td { opacity: .45; }
+.stn-late { color: var(--red, #c0392b); }
+.stn-hold { background: #b3261e; color: #fff; }
+.stn-hold h2, .stn-hold .fd-hint { color: #fff; }
+.stn-hold .btn.primary { background: #fff; color: #b3261e; border-color: #fff; width: 100%; }
+.stn-hold.acked { background: #7a1c16; }
+.stn-hand { white-space: pre-wrap; background: rgba(127,127,127,.1); border-radius: 8px; padding: 8px; }

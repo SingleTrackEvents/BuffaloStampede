@@ -241,6 +241,12 @@ async function raceControl(req, env, url, c, ctx) {
     const r = await db.prepare('SELECT sig, data, n, first, last FROM faults ORDER BY last DESC LIMIT 60').all();
     return json({ now, faults: r.results.map(x => Object.assign(JSON.parse(x.data), { sig: x.sig, n: x.n, first: x.first, last: x.last })) });
   }
+  // The stations for HQ: every entry in the last 36 hours, and the station codes.
+  if (url.pathname === '/rc/stn' && req.method === 'GET') {
+    await ensureLive(db);
+    const r = await db.prepare('SELECT id, post, kind, data, who, t, updated FROM stn WHERE t > ?1 ORDER BY t DESC LIMIT 2000').bind(now - 36 * 3600e3).all();
+    return json({ now, codes: JSON.parse((await getSetting(db, 'stn_codes')) || '{}'), rows: r.results.map(x => Object.assign(JSON.parse(x.data), { id: x.id, post: x.post, kind: x.kind, who: x.who, t: x.t, updated: x.updated })) });
+  }
   // The medical log for HQ: every entry, never the clinical notes (those stay with the Medical Team).
   if (url.pathname === '/rc/care' && req.method === 'GET') {
     await ensureLive(db);
@@ -342,6 +348,42 @@ async function raceControl(req, env, url, c, ctx) {
     }
     if (ops.length) await db.batch(ops);
     return json({ ok: true });
+  }
+  // Stations from HQ: { codes: { post: code } } (set or replace the station codes), { request, state } (a supply
+  // request on its way or done), { hold: id, posts: [names] or ['*'], text } (call a hold) or { release: id }.
+  if (url.pathname === '/rc/stn') {
+    await ensureLive(db);
+    const tm = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(now));
+    if (body.codes && typeof body.codes === 'object') {
+      const c = {};
+      for (const [k, v] of Object.entries(body.codes).slice(0, 40)) { const code = clip(String(v || ''), 12).toUpperCase(); if (/^[A-Z0-9]{4,12}$/.test(code)) c[clip(k, 60)] = code; }
+      await db.batch([setSetting(db, 'stn_codes', JSON.stringify(c), now), addLog(null, 'station', 'Station codes issued for ' + Object.keys(c).length + ' stations')]);
+      return json({ ok: true, codes: c });
+    }
+    if (body.request) {
+      const row = await db.prepare("SELECT post, data FROM stn WHERE id = ?1 AND kind = 'request'").bind(clip(String(body.request), 40)).first();
+      if (!row || !['onway', 'done'].includes(body.state)) return json({ error: 'Bad request' }, 400);
+      const d = Object.assign(JSON.parse(row.data), { state: body.state, st_t: now, by: who });
+      await db.batch([db.prepare('UPDATE stn SET data = ?2, updated = ?3 WHERE id = ?1').bind(body.request, JSON.stringify(d), now),
+        addLog(null, 'station', row.post + ': ' + (d.items.join(', ') || 'request') + (body.state === 'onway' ? ' on its way' : ' done'))]);
+      return json({ ok: true });
+    }
+    if (body.hold) {
+      const id = clip(String(body.hold), 40), posts = (Array.isArray(body.posts) ? body.posts : ['*']).slice(0, 40).map(x => clip(String(x), 60));
+      if (!/^[A-Za-z0-9-]{8,40}$/.test(id)) return json({ error: 'Bad request' }, 400);
+      const text = clip(String(body.text || 'Hold runners at your station until ' + hqName(env) + ' releases the hold.'), 300);
+      const ops = posts.map((p, k) => db.prepare("INSERT OR IGNORE INTO stn (id, post, kind, data, who, t, updated) VALUES (?1, ?2, 'hold', ?3, ?4, ?5, ?5)").bind(k ? id + '-' + k : id, p, JSON.stringify({ hold: id, text, posts }), who, now));
+      ops.push(addLog(null, 'hold', 'HOLD called at ' + tm + ' for ' + (posts.includes('*') ? 'every station' : posts.join(', ')) + ': ' + text));
+      await db.batch(ops);
+      return json({ ok: true });
+    }
+    if (body.release) {
+      const id = clip(String(body.release), 40);
+      await db.batch([db.prepare("INSERT OR IGNORE INTO stn (id, post, kind, data, who, t, updated) VALUES (?1, '*', 'release', ?2, ?3, ?4, ?4)").bind('rel-' + id, JSON.stringify({ hold: id }), who, now),
+        addLog(null, 'hold', 'Hold released at ' + tm)]);
+      return json({ ok: true });
+    }
+    return json({ error: 'Bad request' }, 400);
   }
   // Send a vehicle: { id, incident, num, field_id, name, where, lat, lon, note, nearest } or { id, cancel: true }.
   if (url.pathname === '/rc/transport') {
@@ -624,7 +666,13 @@ const LIVE_SCHEMA = [
   // Transport jobs (docs/MEDICAL_AND_RISK.md 3.3): HQ sends a vehicle (a field phone that shares as a 4WD or medical
   // vehicle) to an access point for an incident; the driver's phone answers. state: sent, onway, arrived, cant, cancelled.
   'CREATE TABLE IF NOT EXISTS transport (id TEXT PRIMARY KEY, incident TEXT, field_id TEXT NOT NULL, name TEXT, data TEXT NOT NULL, t INTEGER NOT NULL, state TEXT NOT NULL, st_t INTEGER NOT NULL, updated INTEGER NOT NULL)',
-  'CREATE INDEX IF NOT EXISTS transport_field ON transport (field_id, t)'
+  'CREATE INDEX IF NOT EXISTS transport_field ON transport (field_id, t)',
+  // Aid stations (the Aid Station Manager screen, scope 4.3): each signs in with its own station code (settings
+  // stn_codes, set by HQ) and only ever sees its own station. kind: report (open, status, close: stock, staff and crowd
+  // levels and a note), request (supplies from HQ, with HQ's state), holdack (confirming a hold), handover (a note for
+  // the next shift), and from HQ: hold (post is a station or '*') and release (data.hold names the hold).
+  'CREATE TABLE IF NOT EXISTS stn (id TEXT PRIMARY KEY, post TEXT NOT NULL, kind TEXT NOT NULL, data TEXT NOT NULL, who TEXT, t INTEGER NOT NULL, updated INTEGER NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS stn_updated ON stn (updated)'
 ];
 // Where a phone's position is believed: Victoria and southern NSW, for every Running Wild event (the GPT100's own
 // Worker took the Grampians only, which turned away every fix from Mt Buller, the Prom, Baw Baw and the Alps).
@@ -745,13 +793,57 @@ async function liveApi(req, env, url, c, ctx) {
   if (!b || typeof b !== 'object') return json({ error: 'Bad request' }, 400);
   const ip = await caller(req);
 
+  // ---------- aid stations, from the Aid Station Manager's phone ----------
+  if (path === '/stn/in' || path === '/stn/add' || path === '/stn/list') {
+    const codes = JSON.parse((await getSetting(db, 'stn_codes')) || '{}'), code = txt(b.code, 20).toUpperCase();
+    const post = Object.keys(codes).find(p => code && sameText(code, String(codes[p]).toUpperCase()));
+    if (!post) { await allow(db, 'code:' + ip, 12, 10 * 60e3); return json({ error: Object.keys(codes).length ? 'That station code isn\'t right' : hqName(env) + ' hasn\'t issued station codes yet' }, 401); }
+    if (path === '/stn/in') return json({ ok: true, post });
+    if (path === '/stn/list') {
+      const r = await db.prepare("SELECT id, post, kind, data, who, t, updated FROM stn WHERE (post = ?1 OR post = '*' OR kind IN ('hold', 'release')) AND t > ?2 ORDER BY t DESC LIMIT 300").bind(post, now - 36 * 3600e3).all();
+      const rows = r.results.map(x => Object.assign(JSON.parse(x.data), { id: x.id, post: x.post, kind: x.kind, who: x.who, t: x.t, updated: x.updated }))
+        .filter(x => x.kind !== 'hold' || x.post === '*' || x.post === post);
+      return json({ now, post, rows });
+    }
+    if (!(await allow(db, 'stn:' + ip, 200, 60 * 60e3))) return json({ error: 'Too many entries from this phone. Wait a while.' }, 429);
+    const ops = [], saved = [], tm = t => new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
+    const LV = ['green', 'amber', 'red'];
+    for (const e of (Array.isArray(b.entries) ? b.entries : [b.entry]).slice(0, 30)) {
+      if (!e || typeof e !== 'object') continue;
+      const id = txt(e.id, 40), kind = ['report', 'request', 'holdack', 'handover'].includes(e.kind) ? e.kind : null;
+      if (!/^[A-Za-z0-9-]{8,40}$/.test(id) || !kind) continue;
+      if (await db.prepare('SELECT id FROM stn WHERE id = ?1').bind(id).first()) { saved.push(id); continue; }
+      const t = Math.min(now, num(e.t, 0, 1e14) || now), who = txt(e.who, 40);
+      let d, text;
+      if (kind === 'report') {
+        d = { type: ['open', 'status', 'close'].includes(e.type) ? e.type : 'status', stock: LV.includes(e.stock) ? e.stock : 'green', staff: LV.includes(e.staff) ? e.staff : 'green', crowd: LV.includes(e.crowd) ? e.crowd : 'green', note: txt(e.note, 300) };
+        const worst = ['red', 'amber', 'green'].find(l => [d.stock, d.staff, d.crowd].includes(l));
+        text = post + (d.type === 'open' ? ' open' : d.type === 'close' ? ' closed' : ' report') + ': ' + (worst === 'green' ? 'all good' : ['stock', 'staff', 'crowd'].filter(k => d[k] !== 'green').map(k => k + ' ' + d[k]).join(', ')) + (d.note ? ' (' + d.note + ')' : '');
+      } else if (kind === 'request') {
+        d = { items: (Array.isArray(e.items) ? e.items : []).slice(0, 10).map(x => txt(x, 30)).filter(Boolean), note: txt(e.note, 300), state: 'sent', st_t: now };
+        if (!d.items.length && !d.note) continue;
+        text = post + ' asks for ' + (d.items.join(', ') || 'help') + (d.note ? ' (' + d.note + ')' : '');
+      } else if (kind === 'holdack') {
+        d = { hold: txt(e.hold, 40) }; text = post + ' is holding runners';
+      } else { d = { note: txt(e.note, 1000) }; if (!d.note) continue; text = post + ' handover: ' + d.note.slice(0, 160); }
+      ops.push(db.prepare('INSERT INTO stn (id, post, kind, data, who, t, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)').bind(id, post, kind, JSON.stringify(d), who, t, now));
+      ops.push(db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, NULL, ?2, ?3, ?4, ?1)').bind(now, 'station', text + ' at ' + tm(t), who || post));
+      saved.push(id);
+    }
+    if (ops.length) await db.batch(ops);
+    return json({ ok: true, saved, post });
+  }
+
   // ---------- the medical log, from the phones ----------
   // A phone proves itself with the medical code (Medical Team: clinical notes kept and shown) or the team code (Safety
   // Officers and Aid Station Managers: a runner seen, an outcome and a withdrawal, no clinical notes).
   if (path === '/care/add' || path === '/care/list') {
-    const [mc, fc] = await Promise.all([getSetting(db, 'med_code'), getSetting(db, 'field_code')]);
-    const code = txt(b.code, 20).toLowerCase(), role = mc && sameText(code, mc.toLowerCase()) ? 'medical' : fc && sameText(code, fc.toLowerCase()) ? 'field' : null;
-    if (!mc && !fc) return json({ off: true, error: hqName(env) + ' hasn\'t set a medical or team code yet' }, 409);
+    const [mc, fc, sc] = await Promise.all([getSetting(db, 'med_code'), getSetting(db, 'field_code'), getSetting(db, 'stn_codes')]);
+    const codes = JSON.parse(sc || '{}'), code = txt(b.code, 20).toLowerCase();
+    // An Aid Station Manager's station code works too, as the team code does, for their own station only.
+    const stnPost = Object.keys(codes).find(p => code && sameText(code, String(codes[p]).toLowerCase()));
+    const role = mc && sameText(code, mc.toLowerCase()) ? 'medical' : (fc && sameText(code, fc.toLowerCase())) || stnPost ? 'field' : null;
+    if (!mc && !fc && !stnPost) return json({ off: true, error: hqName(env) + ' hasn\'t set a medical or team code yet' }, 409);
     if (!role) { await allow(db, 'code:' + ip, 12, 10 * 60e3); return json({ error: 'That code isn\'t right' }, 401); }
     if (path === '/care/list') {
       const since = num(b.since, 0, 1e14) || now - 36 * 3600e3;
@@ -768,7 +860,7 @@ async function liveApi(req, env, url, c, ctx) {
       // (seen and clear name the concern they belong to, by its id.)
       if ((kind === 'seen' || kind === 'clear') && !/^[A-Za-z0-9-]{8,40}$/.test(txt(e.type, 40))) continue;
       if (!/^[A-Za-z0-9-]{8,40}$/.test(id) || !kind) continue;
-      const bib = txt(e.bib, 8).replace(/[^0-9A-Za-z]/g, ''), post = txt(e.post, 60), t = Math.min(now, num(e.t, 0, 1e14) || now);
+      const bib = txt(e.bib, 8).replace(/[^0-9A-Za-z]/g, ''), post = stnPost || txt(e.post, 60), t = Math.min(now, num(e.t, 0, 1e14) || now);
       const old = await db.prepare('SELECT id, outcome, deleted FROM care WHERE id = ?1').bind(id).first();
       const del = e.deleted === true ? now : null;
       ops.push(db.prepare('INSERT INTO care (id, kind, bib, name, race, post, type, outcome, reason, notes, who, role, t, updated, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) ' +
@@ -1076,7 +1168,7 @@ const ONE = {
     if ((url.pathname === '/timing/' || url.pathname === '/timing') && req.method === 'GET') {
       try { return await timingRelay(req, env, url, c); } catch (e) { return new Response(JSON.stringify({ error: 'Timing feed unreachable: ' + e.message }), { status: 502, headers: c.headers }); }
     }
-    if (/^\/(live|help|fault|field\/|push\/|care\/)/.test(url.pathname)) {
+    if (/^\/(live|help|fault|field\/|push\/|care\/|stn\/)/.test(url.pathname)) {
       try { return await liveApi(req, env, url, c, ctx); } catch (e) { return new Response(JSON.stringify({ error: 'Live: ' + e.message }), { status: 502, headers: c.headers }); }
     }
     if (url.pathname.startsWith('/archive/')) {

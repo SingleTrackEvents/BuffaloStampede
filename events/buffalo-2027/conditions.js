@@ -45,8 +45,8 @@ window.ST_CONDITIONS = {
       trigger: 'Any injury, lost runner or help request open; red over an hour',
       response: 'Work each one on the Control tab. Several at once: consider holding the field behind them.' },
     { id: 'comms', group: 'Comms', name: 'Station reports', src: ['comms'],
-      trigger: 'A station that hasn\'t reported for its 2-hour check',
-      response: 'Call the station; send someone if it can\'t be raised. (Comes with the Aid Station Manager screen.)' }
+      trigger: 'An open station that hasn\'t reported for 2 hours (or opened 15 minutes into its session), or a station that needs help now',
+      response: 'Call the station; send someone if it can\'t be raised. A station asking for help now: check the Stations tab.' }
   ],
   // When a check is due (RMP section 6, review points). Each opens the checklist below.
   reviews: ['7 days out', '48 hours out', 'Race eve (after the CFA rating at 16:00, decision by 17:00)', 'Race morning: Friday', 'Race morning: Saturday', 'Race morning: Sunday', 'Event HQ shift change', 'Every 6 hours during the 100k', 'After a significant change'],

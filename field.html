@@ -8,11 +8,11 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#223c2c" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12231a" media="(prefers-color-scheme: dark)">
-<link rel="stylesheet" href="lib/fonts.css?v=23">
-<link rel="stylesheet" href="lib/leaflet.css?v=23">
-<link rel="stylesheet" href="css/app.css?v=23">
-<link rel="stylesheet" href="css/field.css?v=23">
-<link rel="stylesheet" href="css/runner.css?v=23">
+<link rel="stylesheet" href="lib/fonts.css?v=24">
+<link rel="stylesheet" href="lib/leaflet.css?v=24">
+<link rel="stylesheet" href="css/app.css?v=24">
+<link rel="stylesheet" href="css/field.css?v=24">
+<link rel="stylesheet" href="css/runner.css?v=24">
 </head>
 <body class="field">
 <header class="top">
@@ -120,6 +120,9 @@
   </section>
   </div>
 
+  <!-- Station: the Aid Station Manager screen (js/station.js), for events with the aid module -->
+  <div class="rn-tab" data-tab="stn" data-module="aid" hidden><div id="stnBody"></div></div>
+
   <!-- Log: the medical log (js/care.js), for events with the medical module -->
   <div class="rn-tab" data-tab="log" data-module="medical" hidden><div id="careBody"></div></div>
 
@@ -132,50 +135,53 @@
   <button type="button" data-tab="map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z M9 3v15 M15 6v15"/></svg><span>Map</span></button>
   <button type="button" data-tab="where"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z M12 7.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg><span>Where</span></button>
   <button type="button" data-tab="race"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4 M5 4h11l-2 4 2 4H5"/></svg><span>Race</span></button>
+  <button type="button" data-tab="stn" data-module="aid"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18 M5 20V10l7-5 7 5v10 M9 20v-6h6v6"/></svg><span>Station</span></button>
   <button type="button" data-tab="log" data-module="medical"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg><span>Log</span></button>
 </nav>
 
 <!-- The Weather tab code supplies the weather line; it stays hidden here. -->
 <div id="wxBody" hidden></div>
 
-<script src="js/live.js?v=23"></script>
-<script src="js/viewport.js?v=23"></script>
-<script src="lib/leaflet.js?v=23"></script>
-<script src="js/heading.js?v=23"></script>
-<script src="events/events.js?v=23"></script>
-<script src="js/event.js?v=23"></script>
+<script src="js/live.js?v=24"></script>
+<script src="js/viewport.js?v=24"></script>
+<script src="lib/leaflet.js?v=24"></script>
+<script src="js/heading.js?v=24"></script>
+<script src="events/events.js?v=24"></script>
+<script src="js/event.js?v=24"></script>
 <script>ST.load('config.js')</script>
 <script>ST.load('course.js')</script>
 <script>ST.load('courses.js')</script>
 <script>ST.load('course-w3w.js')</script>
 <script>ST.load('access-edits.js')</script>
 <script>ST.load('contingency.js')</script>
-<script src="js/engine.js?v=23"></script>
-<script src="js/contingency.js?v=23"></script>
+<script src="js/engine.js?v=24"></script>
+<script src="js/contingency.js?v=24"></script>
 <script>ST.load('safety-officers.js')</script>
 <script>ST.load('tiles.js')</script>
-<script src="js/basemap.js?v=23"></script>
-<script src="js/profile.js?v=23"></script>
+<script src="js/basemap.js?v=24"></script>
+<script src="js/profile.js?v=24"></script>
 <script>ST.load('helipads.js')</script>
-<script src="js/helipads.js?v=23"></script>
+<script src="js/helipads.js?v=24"></script>
 <script>ST.load('track-grades.js')</script>
-<script src="js/track.js?v=23"></script>
+<script src="js/track.js?v=24"></script>
 <script>ST.load('pacing.js')</script>
 <script>ST.load('demo-runners.js')</script>
-<script src="js/demo.js?v=23"></script>
-<script src="js/timing.js?v=23"></script>
-<script src="js/tracking.js?v=23"></script>
-<script src="js/fullscreen.js?v=23"></script>
-<script src="js/runners.js?v=23"></script>
-<script src="js/weather-core.js?v=23"></script>
-<script src="js/weather.js?v=23"></script>
+<script src="js/demo.js?v=24"></script>
+<script src="js/timing.js?v=24"></script>
+<script src="js/tracking.js?v=24"></script>
+<script src="js/fullscreen.js?v=24"></script>
+<script src="js/runners.js?v=24"></script>
+<script src="js/weather-core.js?v=24"></script>
+<script src="js/weather.js?v=24"></script>
 <script>ST.load('races.js')</script>
+<script>ST.load('cover.js')</script>
 <script>ST.load('splits.js')</script>
 <script>ST.load('runner-courses.js')</script>
-<script src="js/races.js?v=23"></script>
-<script src="js/intro.js?v=23"></script>
-<script src="js/field.js?v=23"></script>
-<script src="js/care.js?v=23"></script>
-<script src="js/jobs.js?v=23"></script>
+<script src="js/races.js?v=24"></script>
+<script src="js/intro.js?v=24"></script>
+<script src="js/field.js?v=24"></script>
+<script src="js/care.js?v=24"></script>
+<script src="js/jobs.js?v=24"></script>
+<script src="js/station.js?v=24"></script>
 </body>
 </html>

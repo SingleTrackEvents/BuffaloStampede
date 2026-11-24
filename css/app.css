@@ -1134,3 +1134,16 @@ body.on-rc .foot { display: none; }
 .care-chips .care-chip { min-height: 36px; padding: 0 10px; border: 2px solid var(--ink); border-radius: 18px; background: var(--paper); color: var(--ink); font: 600 13px Montserrat, sans-serif; cursor: pointer; }
 .care-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .care-chips .care-chip.on { background: var(--btn); border-color: var(--btn); color: #fff; }
+
+/* ---------- Stations tab (js/stations-hq.js) ---------- */
+#tab-stations { padding: 16px; }
+.sh-t small { display: block; opacity: .75; }
+.sh-t tr.late td { background: rgba(192,57,43,.12); }
+.sh-lv { display: inline-block; border-radius: 10px; padding: 1px 8px; font-size: 12px; font-weight: 700; color: #fff; background: #2e7d32; }
+.sh-lv.amber { background: #e8710a; } .sh-lv.red { background: #c62828; }
+.sh-hold { background: #b3261e; color: #fff; border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+.sh-hold ul { margin: 6px 0; padding-left: 18px; } .sh-hold li.wait { font-weight: 700; }
+.sh-hold .btn { background: #fff; color: #b3261e; border-color: #fff; }
+.sh-holdform { border: 2px solid #b3261e; border-radius: 10px; padding: 10px 12px; margin: 10px 0; }
+.sh-holdform label { display: inline-flex; gap: 4px; align-items: center; margin: 2px 10px 2px 0; font-size: 14px; }
+.sh .rk-box { margin-top: 12px; }

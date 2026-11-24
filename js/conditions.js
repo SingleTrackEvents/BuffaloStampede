@@ -21,7 +21,7 @@
   const pw = () => window.MedPlan && window.MedPlan.pw && window.MedPlan.pw();
   const who = () => { try { return localStorage.getItem('st_rc_name') || ''; } catch (e) { return ''; } };
   const rid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  let wx = null, care = [], state = null, recs = [], shown = false, timer = null, err = '', deciding = null, checking = null, draft = {};
+  let wx = null, care = [], state = null, recs = [], stn = [], shown = false, timer = null, err = '', deciding = null, checking = null, draft = {};
 
   async function api(path, body) {
     const r = await fetch(BASE + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-RC-Password': pw() }, body: JSON.stringify(body) } : { headers: { 'X-RC-Password': pw() }, cache: 'no-store' });
@@ -35,6 +35,7 @@
     if (BASE && pw()) {
       jobs.push(api('/rc/care').then(j => { care = j.care || []; }).catch(e => { err = e.message; }));
       jobs.push(api('/rc/state?since=' + Date.now()).then(j => { state = j; }).catch(e => { err = e.message; }));
+      if (ST.has('aid')) jobs.push(api('/rc/stn').then(j => { stn = j.rows || []; }).catch(() => { }));
       jobs.push(api('/rc/ra?since=0').then(j => { recs = (j.ra || []).filter(r => r.kind === 'decision' || r.kind === 'check'); }).catch(() => { }));
     }
     await Promise.all(jobs); render();
@@ -75,7 +76,17 @@
         const open = (state && state.incidents || []).filter(i => i.status !== 'closed');
         const old = open.filter(i => now - ((i.times || {}).call || i.created) > 3600e3);
         parts.push({ lvl: old.length ? 'red' : open.length ? 'amber' : 'green', text: open.length ? `${open.length} open${old.length ? ', ' + old.length + ' over an hour' : ''}.` : 'None open.' });
-      } else if (s === 'comms') parts.push({ lvl: 'grey', text: 'Station report-ins come with the Aid Station Manager screen.' });
+      } else if (s === 'comms') {
+        // Aid stations (js/station.js): an open station 2 hours without a report, or 15 minutes into its session unopened.
+        const SH = window.StationsHQ;
+        if (!SH || !ST.has('aid')) parts.push({ lvl: 'grey', text: 'No station reports for this event.' });
+        else {
+          const all = SH.stations().map(p => SH.status(p, stn)), late = all.filter(x => x.overdue), openN = all.filter(x => x.open).length;
+          const red = all.filter(x => x.open && x.last && ['stock', 'staff', 'crowd'].some(k => x.last[k] === 'red'));
+          parts.push({ lvl: late.length || red.length ? 'red' : openN ? 'green' : 'grey',
+            text: [late.length ? 'Report overdue: ' + late.map(x => x.post).join(', ') : '', red.length ? 'Need help now: ' + red.map(x => x.post).join(', ') : '', !late.length && !red.length ? (openN ? openN + ' station' + (openN > 1 ? 's' : '') + ' open and reporting.' : 'No stations open.') : ''].filter(Boolean).join('. ') });
+        }
+      }
     });
     const lvl = parts.reduce((a, p) => RANK[p.lvl] > RANK[a] ? p.lvl : a, 'grey');
     return { L, lvl: parts.some(p => p.lvl !== 'grey') && lvl === 'grey' ? 'green' : lvl, text: parts.map(p => p.text).join(' ') };
@@ -95,7 +106,7 @@
     let groups = '';
     [...new Set(D.lines.map(l => l.group))].forEach(g => {
       groups += `<h3 class="rk-g">${esc(g)}</h3>` + ls.filter(x => x.L.group === g).map(x => `<div class="rk-line ${x.lvl}" data-id="${esc(x.L.id)}">
-        <div class="rk-top"><span class="rk-dot"></span><b>${esc(x.L.name)}</b><span class="rk-st">${LBL[x.lvl]}</span>${x.L.src[0] === 'comms' ? '' : `<button class="btn small" data-act="decide" type="button">Decide</button>`}</div>
+        <div class="rk-top"><span class="rk-dot"></span><b>${esc(x.L.name)}</b><span class="rk-st">${LBL[x.lvl]}</span><button class="btn small" data-act="decide" type="button">Decide</button></div>
         <p class="rk-now">${esc(x.text)}</p>
         <details><summary>Trigger and pre-agreed response</summary><p><b>Trigger:</b> ${esc(x.L.trigger)}</p><p><b>Response:</b> ${esc(x.L.response)}</p></details>
         ${deciding === x.L.id ? decideHtml(x) : ''}</div>`).join('');
@@ -123,6 +134,7 @@
       <button class="btn small" data-act="addact" type="button">Another action</button>
       <label class="rk-l">Notice to every phone (optional)</label><textarea class="rk-in" data-f="notice" rows="2" maxlength="280">${esc(d.notice)}</textarea>
       <label class="rk-chk"><input type="checkbox" data-f="send"${d.send ? ' checked' : ''}> Send it as an important notice when I record this</label>
+      ${ST.has('aid') ? `<label class="rk-chk"><input type="checkbox" data-f="hold"${d.hold ? ' checked' : ''}> HOLD: send the hold to every aid station, to confirm they're holding</label>` : ''}
       <div class="rk-btns"><button class="btn primary" data-act="record" type="button">Record decision</button><button class="btn" data-act="cancel" type="button">Cancel</button></div><p class="muted" id="rkMsg"></p></div>`;
   }
   function checkHtml(ls) {
@@ -152,6 +164,7 @@
           try {
             await api('/rc/ra', { id: id2, patch: rec, who: who(), note: `Decision: ${x.response} for ${L.name}${rec.detail ? ' (' + rec.detail + ')' : ''}` });
             if (rec.noticeSent) await api('/rc/notice', { text: x.notice.trim(), level: 'alert', aud: 'all', mins: 240, who: who() });
+            if (x.hold && x.response === 'HOLD' && ST.has('aid')) await api('/rc/stn', { who: who(), hold: 'h' + id2.slice(4), posts: ['*'], text: (x.detail.trim() || x.notice.trim() || 'Hold runners at your station until ' + ST.hq + ' releases the hold.') });
             delete draft[id]; deciding = null; await load();
           } catch (e) { m.textContent = 'Not recorded: ' + e.message; }
         }
