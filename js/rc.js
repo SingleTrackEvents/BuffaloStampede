@@ -170,6 +170,37 @@
     return `<p class="hq-near">Nearest crew: <b>${esc(best.f.name)}</b>, ${far} away (${ageOf(best.f.t)}).</p>`;
   }
 
+  // ---------- transport (docs/MEDICAL_AND_RISK.md 3.3) ----------
+  // Vehicles are field phones sharing as a 4WD or medical vehicle. Send vehicle lists them nearest first to the
+  // pick-up point (the vehicle access nearest the incident) and the nearest goes with one tap; the Medical Director is
+  // told, not asked. The driver's phone shows the job and answers; the card shows each step, and a job nobody has
+  // acknowledged after 5 minutes goes red.
+  let chooser = null;
+  const ACK_MS = 5 * 60000;
+  const vehicles = () => (live && live.field || []).filter(f => (f.unit === 'vehicle' || f.unit === 'medical') && (live.now || now()) - f.t < 30 * 60000);
+  function pickup(i) {
+    const at = where(i); if (!at) return null;
+    let best = null, bd = Infinity;
+    (G.ACCESS || []).forEach(a => { const d = G.metres(at, [a.lat, a.lon]); if (d < bd) { bd = d; best = a; } });
+    return best && bd < 5000 ? { name: G.cleanName ? G.cleanName(best) : best.name, lat: best.lat, lon: best.lon, offM: bd } : { name: i.where || 'the incident', lat: at[0], lon: at[1], offM: 0 };
+  }
+  const jobsFor = i => (live && live.transport || []).filter(x => x.incident === i.id && x.state !== 'cancelled');
+  const STATE = { sent: 'sent, waiting for an answer', onway: 'on the way', arrived: 'arrived', cant: 'can\'t go' };
+  function transportHtml(i) {
+    const js = jobsFor(i), p = pickup(i);
+    let h = js.map(x => { const late = x.state === 'sent' && (live.now || now()) - x.t > ACK_MS;
+      return `<p class="hq-tr${late || x.state === 'cant' ? ' late' : ''}">Transport: <b>${esc(x.name)}</b> to ${esc(x.where || 'the incident')}, ${esc(STATE[x.state] || x.state)} (sent ${hm(x.t)}${x.state !== 'sent' ? ', ' + hm(x.st_t) : ''}).${late ? ' No answer yet: call them.' : ''}${x.state === 'cant' ? ' Send another.' : ''}
+        ${x.state === 'sent' || x.state === 'onway' ? `<button class="btn small" data-act="tcancel" data-t="${esc(x.id)}" type="button">Cancel</button>` : ''}</p>`; }).join('');
+    if (chooser === i.id) {
+      const vs = p ? vehicles().map(f => ({ f, m: G.metres([p.lat, p.lon], [f.lat, f.lon]) })).sort((a, b) => a.m - b.m) : [];
+      h += `<div class="hq-choose"><p>Pick-up: <b>${esc(p ? p.name : 'no position for this entry')}</b>${p && p.offM ? ' (' + (p.offM >= 950 ? (p.offM / 1000).toFixed(1) + ' km' : Math.round(p.offM / 10) * 10 + ' m') + ' from it)' : ''}.</p>
+        ${vs.length ? vs.slice(0, 6).map((v, k) => `<button class="btn small${k ? '' : ' primary'}" data-act="tsend" data-f="${esc(v.f.id)}" type="button">${k ? '' : 'Nearest: '}${esc(v.f.name)}${v.f.unit === 'medical' ? ' (medical)' : ''}, ${(v.m / 1000).toFixed(1)} km</button>`).join(' ')
+          : '<p class="muted">No vehicles sharing their position. Drivers choose "In a vehicle" when they share from the field app.</p>'}
+        <button class="btn small" data-act="tclose" type="button">Close</button></div>`;
+    }
+    return h;
+  }
+
   // ---------- layout ----------
   function build() {
     if (map) { map.remove(); map = null; layer = null; }
@@ -316,12 +347,12 @@
         <span class="hq-age" data-t0="${t.call || i.created}">${closed ? 'Sorted ' + hm(t.closed) : ''}</span></div>
       ${i.desc ? `<p class="hq-what">${esc(i.desc)}</p>` : ''}${from}
       ${ups.length ? `<ul class="hq-ups">${ups.map(l => `<li><time>${hm(l.t)}</time> ${esc(l.text)}${l.who ? ` <span>${esc(l.who)}</span>` : ''}</li>`).join('')}</ul>` : ''}
-      ${closed ? '' : nearCrew(i)}
+      ${closed ? '' : nearCrew(i)}${closed ? '' : transportHtml(i)}
       <p class="hq-meta">#${i.num || '…'} logged ${hm(t.call || i.created)}${i.by ? ' by ' + esc(i.by) : ''}${i.ackBy ? ' · acknowledged by ' + esc(i.ackBy) : ''}${i.sortedBy ? ' · sorted by ' + esc(i.sortedBy) : ''}</p>
       ${closed ? '<div class="hq-actions"><button class="btn small" data-act="reopen" type="button">Reopen</button></div>' : `<div class="hq-actions">
         ${i.needsAck ? '<button class="btn small primary" data-act="ack" type="button">Acknowledge</button>' : ''}
         <form class="hq-upd" data-act="upd"><input type="text" maxlength="300" placeholder="Add an update"><button class="btn small" type="submit">Add</button></form>
-        ${where(i) ? '<button class="btn small" data-act="show" type="button">Map</button>' : ''}
+        ${where(i) ? '<button class="btn small" data-act="show" type="button">Map</button><button class="btn small" data-act="vehicle" type="button">Send vehicle</button>' : ''}
         <button class="btn small hq-sort" data-act="sort" type="button">Sorted</button></div>`}
     </div>`;
   }
@@ -335,6 +366,17 @@
         if (a === 'ack') patchIncident(id, { needsAck: false, ackAt: now(), ackBy: who() }, 'Acknowledged (the phone that sent it is told)');
         if (a === 'sort') patchIncident(id, { status: 'closed', needsAck: false, sortedBy: who(), times: { closed: now() } }, 'Sorted');
         if (a === 'reopen') patchIncident(id, { status: 'open', sortedBy: null, times: { closed: null } }, 'Reopened');
+        if (a === 'vehicle') { chooser = chooser === id ? null : id; render(); return; }
+        if (a === 'tclose') { chooser = null; render(); return; }
+        if (a === 'tsend') {
+          const f = vehicles().find(x => x.id === b.dataset.f), p = pickup(i); if (!f || !p) return;
+          const first = vehicles().map(x => ({ x, m: G.metres([p.lat, p.lon], [x.lat, x.lon]) })).sort((u, v) => u.m - v.m)[0];
+          const job = { id: 't' + newId(), incident: id, num: i.num, bib: i.bib || '', field_id: f.id, name: f.name, where: p.name, lat: p.lat, lon: p.lon,
+            nearest: !!first && first.x.id === f.id, distKm: Math.round(G.metres([p.lat, p.lon], [f.lat, f.lon]) / 100) / 10, note: i.desc || '' };
+          live.transport = [Object.assign({ t: now(), state: 'sent', st_t: now(), by: who() }, job)].concat(live.transport || []);
+          chooser = null; send('/rc/transport', job); render(); return;
+        }
+        if (a === 'tcancel') { const t = b.dataset.t; (live.transport || []).forEach(x => { if (x.id === t) x.state = 'cancelled'; }); send('/rc/transport', { id: t, cancel: true, incident: id }); render(); return; }
         if (a === 'show' && map) { const p = where(i); if (p) { map.setView(p, Math.max(map.getZoom(), 14)); $('rcMap').scrollIntoView({ behavior: 'smooth', block: 'center' }); } }
       }));
       const f = el.querySelector('form.hq-upd');

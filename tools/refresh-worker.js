@@ -200,11 +200,12 @@ async function raceControl(req, env, url, c, ctx) {
       db.prepare('SELECT id, data, created, until FROM notices WHERE cleared IS NULL AND (until IS NULL OR until > ?1) ORDER BY created DESC LIMIT 20').bind(now),
       db.prepare('SELECT id, name, data, t FROM field_pos WHERE t > ?1 ORDER BY name LIMIT 200').bind(now - 6 * 3600e3),
       db.prepare('SELECT COUNT(*) AS n, MAX(last) AS last, SUM(n) AS hits FROM faults'),
-      db.prepare('SELECT COUNT(*) AS n FROM push_subs')
+      db.prepare('SELECT COUNT(*) AS n FROM push_subs'),
+      db.prepare('SELECT id, incident, field_id, name, data, t, state, st_t FROM transport WHERE t > ?1 ORDER BY t DESC LIMIT 100').bind(now - 24 * 3600e3)
     ];
     // A board that's open is a board that's watched: help requests from the phones are only taken while one is.
     if (now - mem(db).rcBeat > 45e3) { mem(db).rcBeat = now; ops.push(setSetting(db, 'rc_seen', now, now)); }
-    const [inc, units, log, st, nt, fp, fa, ps] = await db.batch(ops);
+    const [inc, units, log, st, nt, fp, fa, ps, tr] = await db.batch(ops);
     const S = Object.fromEntries(st.results.map(r => [r.k, r.v]));
     return json({
       now,
@@ -216,7 +217,8 @@ async function raceControl(req, env, url, c, ctx) {
         garmin: { on: !!env.GARMIN_PASSWORD, last: +S.garmin_last || 0, err: S.garmin_err || '' },
         notices: nt.results.map(r => Object.assign(JSON.parse(r.data), { id: r.id, t: r.created, until: r.until })),
         field: fp.results.map(r => Object.assign(JSON.parse(r.data), { id: r.id, name: r.name, t: r.t })),
-        faults: fa.results[0] || { n: 0 }, alerts: (ps.results[0] || {}).n || 0
+        faults: fa.results[0] || { n: 0 }, alerts: (ps.results[0] || {}).n || 0,
+        transport: tr.results.map(r => Object.assign(JSON.parse(r.data), { id: r.id, incident: r.incident, field_id: r.field_id, name: r.name, t: r.t, state: r.state, st_t: r.st_t }))
       }
     });
   }
@@ -337,6 +339,27 @@ async function raceControl(req, env, url, c, ctx) {
       ops.push(setSetting(db, 'med_code', code, now), addLog(null, 'settings', code ? 'Medical log: medical code set' : 'Medical log: medical code removed'));
     }
     if (ops.length) await db.batch(ops);
+    return json({ ok: true });
+  }
+  // Send a vehicle: { id, incident, num, field_id, name, where, lat, lon, note, nearest } or { id, cancel: true }.
+  if (url.pathname === '/rc/transport') {
+    await ensureLive(db);
+    const id = clip(String(body.id || ''), 40);
+    if (!/^[A-Za-z0-9-]{8,40}$/.test(id)) return json({ error: 'Bad request' }, 400);
+    if (body.cancel) {
+      const r = await db.prepare('SELECT name, data FROM transport WHERE id = ?1').bind(id).first();
+      if (!r) return json({ ok: true });
+      await db.batch([db.prepare("UPDATE transport SET state = 'cancelled', st_t = ?2, updated = ?2 WHERE id = ?1").bind(id, now), addLog(body.incident || null, 'transport', 'Transport cancelled: ' + r.name)]);
+      return json({ ok: true });
+    }
+    const fid = clip(String(body.field_id || ''), 40), name = clip(String(body.name || ''), 40);
+    if (!fid || !name) return json({ error: 'Bad request' }, 400);
+    const d = { where: clip(String(body.where || ''), 80), lat: +body.lat || null, lon: +body.lon || null, note: clip(String(body.note || ''), 300), num: +body.num || null,
+      bib: clip(String(body.bib || ''), 8), by: who, nearest: !!body.nearest, distKm: +body.distKm || null };
+    const old = await db.prepare('SELECT id FROM transport WHERE id = ?1').bind(id).first();
+    if (old) return json({ ok: true, again: true });
+    await db.batch([db.prepare("INSERT INTO transport (id, incident, field_id, name, data, t, state, st_t, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 'sent', ?6, ?6)").bind(id, clip(String(body.incident || ''), 40) || null, fid, name, JSON.stringify(d), now),
+      addLog(body.incident || null, 'transport', 'Transport: ' + name + ' sent to ' + (d.where || 'the incident') + (d.num ? ' for #' + d.num : '') + (d.nearest ? ' (nearest vehicle; Medical Director to be told)' : ''))]);
     return json({ ok: true });
   }
   if (url.pathname === '/rc/faults') {
@@ -595,7 +618,11 @@ const LIVE_SCHEMA = [
   // id) and clear (the concern closed: type holds its id).
   // notes: clinical detail, kept only from a phone with the medical code, and only ever returned to one.
   'CREATE TABLE IF NOT EXISTS care (id TEXT PRIMARY KEY, kind TEXT NOT NULL, bib TEXT, name TEXT, race TEXT, post TEXT, type TEXT, outcome TEXT, reason TEXT, notes TEXT, who TEXT, role TEXT, t INTEGER NOT NULL, updated INTEGER NOT NULL, deleted INTEGER)',
-  'CREATE INDEX IF NOT EXISTS care_updated ON care (updated)'
+  'CREATE INDEX IF NOT EXISTS care_updated ON care (updated)',
+  // Transport jobs (docs/MEDICAL_AND_RISK.md 3.3): HQ sends a vehicle (a field phone that shares as a 4WD or medical
+  // vehicle) to an access point for an incident; the driver's phone answers. state: sent, onway, arrived, cant, cancelled.
+  'CREATE TABLE IF NOT EXISTS transport (id TEXT PRIMARY KEY, incident TEXT, field_id TEXT NOT NULL, name TEXT, data TEXT NOT NULL, t INTEGER NOT NULL, state TEXT NOT NULL, st_t INTEGER NOT NULL, updated INTEGER NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS transport_field ON transport (field_id, t)'
 ];
 // Where a phone's position is believed: Victoria and southern NSW, for every Running Wild event (the GPT100's own
 // Worker took the Grampians only, which turned away every fix from Mt Buller, the Prom, Baw Baw and the Alps).
@@ -824,6 +851,27 @@ async function liveApi(req, env, url, c, ctx) {
   }
 
   // A field phone's position, for the board's map. The team code is set on the board and given out at the briefing.
+  // A vehicle's phone: its transport jobs, and its answer to one (onway, arrived, cant).
+  if (path === '/field/jobs' || path === '/field/job') {
+    const code = await getSetting(db, 'field_code');
+    if (!code || !sameText(txt(b.code, 20).toLowerCase(), code.toLowerCase())) return json({ error: 'That team code isn\'t right' }, 401);
+    const fid = txt(b.id, 40);
+    if (!/^[A-Za-z0-9-]{8,40}$/.test(fid)) return json({ error: 'Bad request' }, 400);
+    if (path === '/field/jobs') {
+      const r = await db.prepare('SELECT id, incident, name, data, t, state, st_t FROM transport WHERE field_id = ?1 AND t > ?2 ORDER BY t DESC LIMIT 10').bind(fid, now - 12 * 3600e3).all();
+      return json({ now, jobs: r.results.map(x => Object.assign(JSON.parse(x.data), { id: x.id, incident: x.incident, name: x.name, t: x.t, state: x.state, st_t: x.st_t })) });
+    }
+    const job = txt(b.job, 40), state = ['onway', 'arrived', 'cant'].includes(b.state) ? b.state : null;
+    if (!state) return json({ error: 'Bad request' }, 400);
+    const row = await db.prepare('SELECT name, incident, data, state FROM transport WHERE id = ?1 AND field_id = ?2').bind(job, fid).first();
+    if (!row) return json({ error: 'No such job' }, 404);
+    if (row.state === state || row.state === 'cancelled') return json({ ok: true, state: row.state });
+    const d = JSON.parse(row.data), words = { onway: 'on the way to', arrived: 'arrived at', cant: 'can\'t go to' }[state];
+    await db.batch([db.prepare('UPDATE transport SET state = ?2, st_t = ?3, updated = ?3 WHERE id = ?1').bind(job, state, now),
+      db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, ?2, ?3, ?4, ?5, ?1)').bind(now, row.incident, 'transport',
+        'Transport: ' + row.name + ' ' + words + ' ' + (d.where || 'the incident') + (d.num ? ' (#' + d.num + ')' : '') + (state === 'cant' && b.why ? ': ' + txt(b.why, 120) : ''), row.name)]);
+    return json({ ok: true, state });
+  }
   if (path === '/field/check' || path === '/field/pos') {
     const code = await getSetting(db, 'field_code');
     if (!code) return json({ off: true, error: hqName(env) + ' hasn\'t turned on position sharing' }, 409);
@@ -843,7 +891,8 @@ async function liveApi(req, env, url, c, ctx) {
     if (!list.length) return json({ error: 'Bad request' }, 400);
     if (!(await allow(db, 'pos:' + id, 240, 60 * 60e3))) return json({ error: 'Too many positions. Wait a while.' }, 429);
     const src = b.src === 'apk' ? 'apk' : 'web', last = list[list.length - 1];
-    const data = { lat: last.lat, lon: last.lon, acc: last.acc, km: last.km, course: last.course, offM: last.offM, bat: last.bat, src };
+    const unit = ['vehicle', 'medical'].includes(b.unit) ? b.unit : 'foot';
+    const data = { lat: last.lat, lon: last.lon, acc: last.acc, km: last.km, course: last.course, offM: last.offM, bat: last.bat, src, unit };
     const ops = list.map(f => db.prepare('INSERT INTO field_track (id, name, t, recv, lat, lon, acc, km, course, off_m, bat, charging, spd, src, bg) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)')
       .bind(id, name, f.t, now, f.lat, f.lon, f.acc, f.km, f.course || null, f.offM, f.bat, f.charging, f.spd, src, f.bg));
     // (The board's map: at most one write every 20 seconds from a phone, and never an older fix over a newer one.)

@@ -145,4 +145,14 @@ Still open: asking Race Day Medical, in the 2027 agreement, to log in the app an
 - **HQ.** The Medical tab lists the open runners of concern, longest unseen first, with where and when each was last seen. A runner unseen for over an hour is marked (STE-SOP-104's 60 minute threshold). The flag and each sighting go into HQ's log.
 - **Team code limits.** It can flag, see and withdraw, but can't log medical care (the Worker refuses it).
 
-Next, in order: transport requests with the nearest vehicle going (3.3), cover warnings (3.4), then the Conditions board and decisions (section 4).
+**Transport** (section 3.3), live for Buffalo:
+
+- **Vehicles.** A driver shares from the field app's Where tab and chooses **In a vehicle (4WD)** or **In a medical vehicle**. They show on the Control map like any crew phone.
+- **Send vehicle.** On any incident card with a position. It finds the pick-up point (the vehicle access nearest the incident) and lists the vehicles nearest first. The nearest goes with one tap.
+- **The driver's phone.** It buzzes and shows the job at the top of every tab: where, which incident, the bib and what happened, with **On my way**, **Arrived** (or **Can't go**) and **Directions**.
+- **The card.** It shows each step with its time, and goes red when nobody has answered after 5 minutes ("No answer yet: call them") or the driver can't go. HQ can cancel.
+- **HQ's log.** It records the send, noting when it was the nearest vehicle and that the Medical Director is to be told, and each answer.
+
+Still to come for transport: extraction points with gate codes or key holders, which needs the access list from the Course Manager.
+
+Next, in order: cover warnings (3.4), then the Conditions board and decisions (section 4).

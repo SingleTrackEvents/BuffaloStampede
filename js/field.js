@@ -539,6 +539,8 @@
       <form id="fdShareForm" autocomplete="off">
         <label class="fd-label" for="fdShareName">Your call sign</label><input id="fdShareName" type="text" maxlength="24" placeholder="e.g. Sweep 2 or SO Mt Rosea" value="${esc(c.name)}">
         <label class="fd-label" for="fdShareCode">Team code</label><input id="fdShareCode" type="text" maxlength="20" autocapitalize="characters" spellcheck="false" value="${esc(c.code)}">
+        <label class="fd-label" for="fdShareUnit">You're</label><select id="fdShareUnit"><option value="foot"${c.unit === 'foot' || !c.unit ? ' selected' : ''}>On foot</option><option value="vehicle"${c.unit === 'vehicle' ? ' selected' : ''}>In a vehicle (4WD)</option><option value="medical"${c.unit === 'medical' ? ' selected' : ''}>In a medical vehicle</option></select>
+        <p class="fd-hint">In a vehicle, ${ST.hq} can send you to pick up a runner: the job shows on this phone.</p>
         <button class="btn" type="submit">Start sharing</button>
       </form><p class="fd-hint bad" id="fdShareErr" role="alert"></p>`;
     $('fdShareForm').onsubmit = async e => {
@@ -550,7 +552,7 @@
       btn.disabled = false;
       // No signal to check the code with: it's taken on trust, and the card says so if Race Control turns it down.
       if (bad && !/^No signal/.test(bad)) { err.textContent = bad + '.'; return; }
-      LV.field.set({ on: true, name, code });
+      LV.field.set({ on: true, name, code, unit: $('fdShareUnit').value });
       if (navigator.geolocation && watchId == null) { $('fdFollow').checked = true; follow(true); } else shareDraw();
     };
   }
