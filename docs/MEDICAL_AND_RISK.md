@@ -155,4 +155,20 @@ Still open: asking Race Day Medical, in the 2027 agreement, to log in the app an
 
 Still to come for transport: extraction points with gate codes or key holders, which needs the access list from the Course Manager.
 
-Next, in order: cover warnings (3.4), then the Conditions board and decisions (section 4).
+**Cover** (section 3.4), live for Buffalo:
+
+- **The plan as data.** `events/buffalo-2027/cover.js` holds the medical posts from the Medical and Rescue Plan and the aid station sessions from the Aid Station Operation Plan.
+- **The plan check.** Every post is checked against each race's first runner and cut-off there. A post with no cut-off of its own is estimated from the cut-offs either side. The check flags:
+  - no medical post while runners pass,
+  - opening less than 20 minutes before the first runner,
+  - closing before the last runners.
+- **On post.** Medics and Safety Officers tap **I'm on post here** and **Going off post** on the Log tab. HQ's log records both.
+- **HQ's Medical tab, Cover.** Each medical post that should be open now, with who's checked on, and **Nobody checked on** once a post is 15 minutes past its start. The plan check sits under it.
+
+The plan check finds three things in the current drafts:
+
+1. **Bakers Gully on Sunday.** The valley roving medics finish at 15:30, but the last 42k runners pass at about 16:52.
+2. **Buckland Valley.** No medical post, with 100k runners from Saturday 07:42 to Sunday 04:40 and 42k runners on Sunday morning (option B3 covers only Sunday 09:30 to 13:30).
+3. **Cresta Valley.** No medical post, with 100k runners from Saturday 10:29 to 19:30 (option B2; 33 runners were treated there in 2026).
+
+Next: the Conditions board and decisions (section 4).
