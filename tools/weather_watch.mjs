@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Running Wild hourly weather watch (from the GPT100's). Run by .github/workflows/weather.yml every hour.
 //
-//   node tools/weather_watch.mjs --prev <last published data dir> --out <dir to publish> [--force-models] [--dry]
+//   node tools/weather_watch.mjs --event <id> --prev <last published data dir> --out <dir to publish> [--force-models] [--dry]
+//   (--event: the event pack in events/<id>/; .github/workflows/weather.yml runs it for each event in its window)
 //
 // Fetches every forecast model on Open-Meteo for points along the course (every 3 hours, as the models
 // update), plus CFA fire ratings, BOM warnings and the air quality forecast (every hour). Works out the
@@ -34,7 +35,9 @@ const NOW = opt('--now') ? WX.parseLocal(opt('--now')) : Math.floor(Date.now() /
 
 // ---------- app data (the same files the app loads) ----------
 const win = {};
-for (const f of ['data/config.js', 'data/course.js', 'data/pacing.js']) vm.runInNewContext(fs.readFileSync(path.join(ROOT, f), 'utf8'), { window: win });
+const EVENT = opt('--event');
+if (!EVENT) { console.error('--event <id> is needed (an event pack in events/)'); process.exit(1); }
+for (const f of ['config.js', 'course.js', 'pacing.js']) vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'events', EVENT, f), 'utf8'), { window: win });
 const CFG = win.GPT100_CONFIG, W = CFG.weather, D = win.GPT100_DATA, PACE = win.GPT100_PACING.miler;
 const MODELS = W.models;
 const VARS = ['temperature_2m', 'relative_humidity_2m', 'apparent_temperature', 'precipitation', 'wind_speed_10m', 'wind_gusts_10m', 'weather_code', 'cape', 'cloud_cover', 'uv_index'];

@@ -1,5 +1,6 @@
-# Hourly Running Wild weather watch, for the event in data/config.js: fetches the forecast models, CFA fire ratings, BOM warnings and air quality,
-# checks the risk triggers, sends phone alerts (ntfy) and publishes the results to the weather-data branch
+# Hourly weather watch, for every event within 120 days (tools/weather_events.mjs; each event's settings are in events/<id>/config.js): fetches the forecast models, CFA fire ratings, BOM warnings and air quality,
+# checks the risk triggers, sends phone alerts (ntfy) and publishes the results to the weather-data branch,
+# one folder per event (weather-data/<id>/, the dataUrl in each event's config.js)
 # for the Weather tab. Set the NTFY_TOPIC secret for alerts. OPEN_METEO_KEY is optional (commercial licence).
 name: Weather watch
 
@@ -55,14 +56,23 @@ jobs:
           OPEN_METEO_KEY: ${{ secrets.OPEN_METEO_KEY }}
           EPA_KEY: ${{ secrets.EPA_KEY }}
           TZ: Australia/Melbourne
-        run: node tools/weather_watch.mjs --prev wx-prev --out wx-out ${{ inputs.force_models && '--force-models' || '' }} ${{ inputs.test_alert && '--test-alert' || '' }} ${{ inputs.test_update && '--test-update' || '' }}
+        run: |
+          # Every event in its window gets its own folder; the folders of events outside it are kept as they were.
+          mkdir -p wx-out
+          for d in wx-prev/*/; do [ -d "$d" ] && cp -r "$d" wx-out/; done
+          status=0
+          for ev in $(node tools/weather_events.mjs); do
+            mkdir -p wx-prev/$ev
+            node tools/weather_watch.mjs --event $ev --prev wx-prev/$ev --out wx-out/$ev ${{ inputs.force_models && '--force-models' || '' }} ${{ inputs.test_alert && '--test-alert' || '' }} ${{ inputs.test_update && '--test-update' || '' }} || status=1
+          done
+          exit $status
 
       - name: Publish to the weather-data branch
         run: |
           cd wx-out
           git init -q -b weather-data
           git add -A
-          git -c user.name='Running Wild weather watch' -c user.email='actions@users.noreply.github.com' commit -q -m "Weather data $(date -u +%FT%TZ)"
+          git -c user.name='SingleTrack weather watch' -c user.email='actions@users.noreply.github.com' commit -q -m "Weather data $(date -u +%FT%TZ)"
           # GitHub occasionally rejects a push with a one-off server error ("fatal error in commit_refs").
           # Try a few times before calling the run a failure.
           for i in 1 2 3 4; do
