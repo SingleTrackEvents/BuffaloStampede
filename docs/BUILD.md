@@ -51,9 +51,11 @@ What's built on the shared core so far, and what's next. The scope is [SCOPE.md]
   - The station codes, and the yard's.
 - **Risk tab.** The **Station reports** line is live, and a HOLD decision can be sent to every station.
 
+- **Saved topo map.** The topo map 2 km either side of every Buffalo course, zoom 8 to 15, hosted with the app so phones can save it for use without signal (`node tools/fetch_topo_tiles.mjs buffalo-2027`, which now works per event).
+- **Splits fitted to the 2026 field.** From the 2026 Living It Live GPS tracks (`20260328buffalostamp`, the 100k only: 195 tracked starters, 168 finishers), `tools/events/buffalo/arrivals.mjs` fits each checkpoint's share of a finisher's time (events/buffalo-2027/splits.js). The runner app's expected times and HQ's late and overdue flags use it. Predicting the next checkpoint from the one before, it's within 6 minutes for half the 2026 legs and 22 minutes for 90% (the old blend: 9 and 28). The same tracks give the arrival curves for runners through each station.
+
 ## Next, for Buffalo (scope section 10, phases 1 to 3)
 
-- Drive times from Bright to each access point (checked routes), what3words along the courses, the saved topo map, and demo runners for rehearsals.
-- Splits fitted to the 2026 field, from the Living It Live archive (`20260328buffalostamp`).
+- Drive times from Bright to each access point (checked routes), what3words along the courses, and demo runners for rehearsals.
 - Safety Officer and marshal posts, the BSF27 Risk Management Plan triggers, the medical plan once Race Day Medical signs, the race medical number and the mandatory gear lists.
 - The new lanes: Aid Station Manager, patient record, crews told of withdrawals, restock triggers, sweep progress (scope section 4).
