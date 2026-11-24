@@ -25,6 +25,13 @@ What's built on the shared core so far, and what's next. The scope is [SCOPE.md]
 | 6 | Time zone per event | Times assume Melbourne daylight saving (UTC+11). Fine for Buffalo; the Prom (1 May) is UTC+10 |
 | 7 | Neutral names for the data globals (`GPT100_DATA` and the rest) | Tidy-up, once the above is settled |
 
+## Done (24 November 2026, later)
+
+- **Per-event branding**: names, logos, home screen icons, install files and the control room's name come from the event. Nothing in one event's app names another.
+- **Find** marks the casualty clearly on the map for every event.
+- **Event picker** on every page, and tabs switched on per event (`data-module`).
+- **Medical log and withdrawals** (docs/MEDICAL_AND_RISK.md, section 7): the field app's Log tab and the staff app's Medical tab, on the Worker's `care` table.
+
 ## Next, for Buffalo (scope section 10, phases 1 to 3)
 
 - Drive times from Bright to each access point (checked routes), what3words along the courses, the saved topo map, and demo runners for rehearsals.

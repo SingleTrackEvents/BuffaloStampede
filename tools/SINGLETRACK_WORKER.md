@@ -8,6 +8,7 @@ The GPT100's `gpt100-refresh` and Running Wild's `runningwild-live` are separate
 
 - **Its own address.** Each event's apps talk to `https://singletrack-live.chad-ad3.workers.dev/e/<event id>`, set as `refreshUrl` in the event's `config.js`.
 - **Its own database.** Each event has its own D1 database, bound to the Worker as `DB_<EVENT ID>` (capitals, dashes as underscores): Buffalo 2027 is `singletrack-buffalo-2027`, bound as `DB_BUFFALO_2027`. Clearing one event after race day never touches another.
+- **The medical log** (`care` table): presentations, minor care and withdrawals from the field app's Log tab. Medics sign in with the medical code HQ sets on the Medical tab (setting `med_code`); clinical notes are only ever kept from, and shown to, a phone with that code.
 - **Its own staff password.** The secret `RC_PASSWORD_<EVENT ID>`, for example `RC_PASSWORD_BUFFALO_2027`. There is no shared staff password: an event without its own can't unlock Control.
 - **Its own secrets** where it needs them, with the same ending: `TIMING_URL_`, `NTFY_TOPIC_`, `GARMIN_PASSWORD_`, `ARCHIVE_GPS_`. Without one, the Worker-wide secret of that name is used (except the staff password).
 - **Its settings** (race window for the archive, the app's published config, the Garmin MapShare name) are in `EVENTS` at the bottom of `refresh-worker.js`.
@@ -36,14 +37,14 @@ Check it: `https://singletrack-live.chad-ad3.workers.dev/e/buffalo-2027/live` sh
 
 ## Deploying a change
 
-Paste the whole of `refresh-worker.js` into the Worker's editor in Cloudflare and **Deploy**, or deploy it through the Cloudflare API with every `DB_` binding listed (an upload without them drops them). Test it first on this computer: the crash tests' `tools/crashtest/worker-local.mjs` runs the same code with a local database.
+Paste the whole of `refresh-worker.js` into the Worker's editor in Cloudflare and **Deploy**, or through the Cloudflare API with the code-only upload (`PUT .../workers/scripts/singletrack-live/content`), which keeps every database binding and secret as it is. Test it first on this computer: the crash tests' `tools/crashtest/worker-local.mjs` runs the same code with a local database.
 
 ## After an event
 
 Download the tracks and the incident log from Control first. Then open that event's database in Cloudflare, go to **Console**, and run:
 
 ```
-DELETE FROM field_track; DELETE FROM field_pos; DELETE FROM settings WHERE k LIKE 'garmin_%'; DELETE FROM notices; DELETE FROM faults; DELETE FROM incidents; DELETE FROM units; DELETE FROM log; DELETE FROM rate;
+DELETE FROM care; DELETE FROM field_track; DELETE FROM field_pos; DELETE FROM settings WHERE k LIKE 'garmin_%'; DELETE FROM notices; DELETE FROM faults; DELETE FROM incidents; DELETE FROM units; DELETE FROM log; DELETE FROM rate;
 ```
 
 ## Not set up yet

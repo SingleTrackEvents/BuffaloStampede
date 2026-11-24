@@ -29,6 +29,7 @@
     document.body.classList.toggle('on-risk', name === 'risk');
     if (window.RiskTab) { if (name === 'risk') window.RiskTab.onShow(); else window.RiskTab.onHide(); }
     if (window.RaceControl) { if (name === 'rc') window.RaceControl.onShow(); else window.RaceControl.onHide(); }
+    if (window.CareHQ) { if (name === 'medlog') window.CareHQ.onShow(); else window.CareHQ.onHide(); }
     if (window.WeatherTab) { if (name === 'wx') window.WeatherTab.onShow(); else window.WeatherTab.onHide(); }
     if (name === 'med' && window.MedPlan) window.MedPlan.onShow();
     if (name === 'find' && map) setTimeout(() => map.invalidateSize(), 0);
@@ -736,6 +737,7 @@
     let h = '';
     try { h = decodeURIComponent(location.hash.slice(1)); } catch (e) { }
     // Running Wild has no Medical or Risk tab: old links to them open Control, where the password goes.
+    if (h === 'medical' && ST.has('medical')) { showTab('medlog'); return; }
     if (h === 'medical' || h === 'risk') { showTab('rc'); return; }
     if (h === 'weather') { showTab('wx'); return; }
     if (h === 'control') { showTab('rc'); return; }

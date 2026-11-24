@@ -6,7 +6,7 @@
 // few seconds (weak signal). Leaflet and the fonts are served with the app (lib/) and saved with each build, so nothing
 // the pages need comes from another site. Map tiles are cached as they're used; the topo map can also be saved whole
 // (js/basemap.js).
-const BUILD = '17';
+const BUILD = '19';
 const VERSION = 'st-v' + BUILD;
 const NEXT = 'st-next-v'; // + a newer build: files for its pages, fetched before that build's worker is in
 // Pages, manifests and icons, saved by their own address.
@@ -18,8 +18,8 @@ const PAGES = ['./', 'index.html', 'field.html', 'runner.html', 'map.html', 'adm
   'lib/fonts/montserrat-cyrillic.woff2', 'lib/fonts/montserrat-cyrillic-ext.woff2'];
 // Scripts and styles, saved as the pages ask for them (with ?v=BUILD).
 const FILES = [
-  'lib/fonts.css', 'lib/leaflet.css', 'lib/leaflet.js', 'js/live.js', 'css/app.css', 'css/field.css', 'css/runner.css', 'js/engine.js', 'js/app.js', 'js/medplan.js', 'js/weather-core.js', 'js/weather.js', 'js/rc.js', 'js/basemap.js', 'js/intro.js',
-  'events/events.js', 'js/event.js', 'js/viewport.js', 'js/races.js', 'js/profile.js', 'js/helipads.js', 'js/track.js', 'js/timing.js', 'js/tracking.js', 'js/fullscreen.js', 'js/runners.js', 'js/demo.js', 'js/map.js', 'js/field.js', 'js/runner.js', 'js/track-tab.js', 'js/heading.js', 'js/contingency.js',
+  'lib/fonts.css', 'lib/leaflet.css', 'lib/leaflet.js', 'js/live.js', 'css/app.css', 'css/field.css', 'css/runner.css', 'js/engine.js', 'js/app.js', 'js/medplan.js', 'js/weather-core.js', 'js/weather.js', 'js/rc.js', 'js/care-hq.js', 'js/basemap.js', 'js/intro.js',
+  'events/events.js', 'js/event.js', 'js/viewport.js', 'js/races.js', 'js/profile.js', 'js/helipads.js', 'js/track.js', 'js/timing.js', 'js/tracking.js', 'js/fullscreen.js', 'js/runners.js', 'js/demo.js', 'js/map.js', 'js/field.js', 'js/care.js', 'js/runner.js', 'js/track-tab.js', 'js/heading.js', 'js/contingency.js',
 ];
 // Event packs (events/<id>/): the events marked precache in events/events.js are saved whole at install, so a phone
 // works offline before anyone opens them. Any other event's files are saved the first time a page asks for them.

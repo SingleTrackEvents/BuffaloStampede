@@ -180,7 +180,7 @@ function merge(a, b) {
 async function raceControl(req, env, url, c, ctx) {
   const json = (o, status) => new Response(JSON.stringify(o), { status: status || 200, headers: c.headers });
   if (!c.ok) return json({ error: 'Not allowed from this site' }, 403);
-  if (!env.DB || !env.RC_PASSWORD) return json({ error: 'Race Control isn\'t set up on the Worker yet (needs the DB database and the RC_PASSWORD secret)' }, 503);
+  if (!env.DB || !env.RC_PASSWORD) return json({ error: hqName(env) + ' isn\'t set up on the Worker yet (needs the DB database and the RC_PASSWORD secret)' }, 503);
   if (!sameText(req.headers.get('X-RC-Password'), env.RC_PASSWORD)) return json({ error: 'Wrong password' }, 401);
   const db = env.DB;
   await ensureSchema(db);
@@ -196,7 +196,7 @@ async function raceControl(req, env, url, c, ctx) {
       db.prepare('SELECT id, t, incident, kind, text, who FROM log WHERE updated > ?1 ORDER BY id DESC LIMIT 500').bind(since),
       // The line to the phones, whole each time (it's small): the switches, the notices showing, the field phones
       // heard from in the last 6 hours, and how many kinds of fault the phones have reported.
-      db.prepare("SELECT k, v FROM settings WHERE k IN ('help_on', 'field_code', 'garmin_last', 'garmin_err')"),
+      db.prepare("SELECT k, v FROM settings WHERE k IN ('help_on', 'field_code', 'med_code', 'garmin_last', 'garmin_err')"),
       db.prepare('SELECT id, data, created, until FROM notices WHERE cleared IS NULL AND (until IS NULL OR until > ?1) ORDER BY created DESC LIMIT 20').bind(now),
       db.prepare('SELECT id, name, data, t FROM field_pos WHERE t > ?1 ORDER BY name LIMIT 200').bind(now - 6 * 3600e3),
       db.prepare('SELECT COUNT(*) AS n, MAX(last) AS last, SUM(n) AS hits FROM faults'),
@@ -212,7 +212,7 @@ async function raceControl(req, env, url, c, ctx) {
       units: units.results.map(r => Object.assign(JSON.parse(r.data), { id: r.id, updated: r.updated })),
       log: log.results,
       live: {
-        help_on: S.help_on === '1', field_code: S.field_code || '',
+        help_on: S.help_on === '1', field_code: S.field_code || '', med_code: S.med_code || '',
         garmin: { on: !!env.GARMIN_PASSWORD, last: +S.garmin_last || 0, err: S.garmin_err || '' },
         notices: nt.results.map(r => Object.assign(JSON.parse(r.data), { id: r.id, t: r.created, until: r.until })),
         field: fp.results.map(r => Object.assign(JSON.parse(r.data), { id: r.id, name: r.name, t: r.t })),
@@ -236,6 +236,12 @@ async function raceControl(req, env, url, c, ctx) {
     await ensureLive(db);
     const r = await db.prepare('SELECT sig, data, n, first, last FROM faults ORDER BY last DESC LIMIT 60').all();
     return json({ now, faults: r.results.map(x => Object.assign(JSON.parse(x.data), { sig: x.sig, n: x.n, first: x.first, last: x.last })) });
+  }
+  // The medical log for HQ: every entry, never the clinical notes (those stay with the Medical Team).
+  if (url.pathname === '/rc/care' && req.method === 'GET') {
+    await ensureLive(db);
+    const r = await db.prepare('SELECT id, kind, bib, name, race, post, type, outcome, reason, who, role, t, updated FROM care WHERE deleted IS NULL ORDER BY t DESC LIMIT 3000').all();
+    return json({ now, care: r.results });
   }
   if (url.pathname === '/rc/ra' && req.method === 'GET') {
     const since = Math.max(0, +url.searchParams.get('since') || 0);
@@ -307,7 +313,7 @@ async function raceControl(req, env, url, c, ctx) {
     const to = aud === 'all' ? 'every phone' : aud === 'runner' ? 'runners and crews' : 'the field app';
     await db.batch([
       db.prepare('INSERT INTO notices (id, data, created, until, cleared, updated) VALUES (?1, ?2, ?3, ?4, NULL, ?3)').bind(id, JSON.stringify(data), now, until),
-      db.prepare('INSERT INTO push_msgs (bib, t, title, text, url) VALUES (?1, ?2, ?3, ?4, ?5)').bind(aud === 'all' ? '*' : aud + '*', now, level === 'alert' ? 'GPT100: important' : 'GPT100 Race Control', text, ''),
+      db.prepare('INSERT INTO push_msgs (bib, t, title, text, url) VALUES (?1, ?2, ?3, ?4, ?5)').bind(aud === 'all' ? '*' : aud + '*', now, level === 'alert' ? evName(env) + ': important' : evName(env) + ' ' + hqName(env), text, ''),
       addLog(null, 'notice', `Notice to ${to}${level === 'alert' ? ' (important)' : ''}: ${text}`)
     ]);
     // Straight to the phones with alerts on, without waiting for the next timer.
@@ -324,6 +330,11 @@ async function raceControl(req, env, url, c, ctx) {
       const code = p.field_code.trim().slice(0, 20);
       if (code && !/^[A-Za-z0-9-]{4,20}$/.test(code)) return json({ error: 'A team code is 4 to 20 letters or numbers' }, 400);
       ops.push(setSetting(db, 'field_code', code, now), addLog(null, 'settings', code ? 'Field phones can share their position (team code set)' : 'Field position sharing: off'));
+    }
+    if (typeof p.med_code === 'string') {
+      const code = p.med_code.trim().slice(0, 20);
+      if (code && !/^[A-Za-z0-9-]{4,20}$/.test(code)) return json({ error: 'A medical code is 4 to 20 letters or numbers' }, 400);
+      ops.push(setSetting(db, 'med_code', code, now), addLog(null, 'settings', code ? 'Medical log: medical code set' : 'Medical log: medical code removed'));
     }
     if (ops.length) await db.batch(ops);
     return json({ ok: true });
@@ -577,7 +588,12 @@ const LIVE_SCHEMA = [
   'CREATE TABLE IF NOT EXISTS rate (k TEXT PRIMARY KEY, n INTEGER NOT NULL, t INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS push_subs (id TEXT PRIMARY KEY, endpoint TEXT NOT NULL, app TEXT NOT NULL, bibs TEXT NOT NULL, notices INTEGER NOT NULL, seen INTEGER NOT NULL, tickle INTEGER NOT NULL, created INTEGER NOT NULL, updated INTEGER NOT NULL)',
   'CREATE TABLE IF NOT EXISTS push_msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, bib TEXT NOT NULL, t INTEGER NOT NULL, title TEXT, text TEXT NOT NULL, url TEXT)',
-  'CREATE INDEX IF NOT EXISTS push_msgs_bib ON push_msgs (bib, id)'
+  'CREATE INDEX IF NOT EXISTS push_msgs_bib ON push_msgs (bib, id)',
+  // The medical log (docs/MEDICAL_AND_RISK.md): every presentation, minor care count and withdrawal, logged once.
+  // kind: med (seen by medical), minor (+1 band-aid or ice pack), wd (withdrawal with no medical presentation).
+  // notes: clinical detail, kept only from a phone with the medical code, and only ever returned to one.
+  'CREATE TABLE IF NOT EXISTS care (id TEXT PRIMARY KEY, kind TEXT NOT NULL, bib TEXT, name TEXT, race TEXT, post TEXT, type TEXT, outcome TEXT, reason TEXT, notes TEXT, who TEXT, role TEXT, t INTEGER NOT NULL, updated INTEGER NOT NULL, deleted INTEGER)',
+  'CREATE INDEX IF NOT EXISTS care_updated ON care (updated)'
 ];
 // Where a phone's position is believed: Victoria and southern NSW, for every Running Wild event (the GPT100's own
 // Worker took the Grampians only, which turned away every fix from Mt Buller, the Prom, Baw Baw and the Alps).
@@ -698,6 +714,52 @@ async function liveApi(req, env, url, c, ctx) {
   if (!b || typeof b !== 'object') return json({ error: 'Bad request' }, 400);
   const ip = await caller(req);
 
+  // ---------- the medical log, from the phones ----------
+  // A phone proves itself with the medical code (Medical Team: clinical notes kept and shown) or the team code (Safety
+  // Officers and Aid Station Managers: a runner seen, an outcome and a withdrawal, no clinical notes).
+  if (path === '/care/add' || path === '/care/list') {
+    const [mc, fc] = await Promise.all([getSetting(db, 'med_code'), getSetting(db, 'field_code')]);
+    const code = txt(b.code, 20).toLowerCase(), role = mc && sameText(code, mc.toLowerCase()) ? 'medical' : fc && sameText(code, fc.toLowerCase()) ? 'field' : null;
+    if (!mc && !fc) return json({ off: true, error: hqName(env) + ' hasn\'t set a medical or team code yet' }, 409);
+    if (!role) { await allow(db, 'code:' + ip, 12, 10 * 60e3); return json({ error: 'That code isn\'t right' }, 401); }
+    if (path === '/care/list') {
+      const since = num(b.since, 0, 1e14) || now - 36 * 3600e3;
+      const r = await db.prepare('SELECT id, kind, bib, name, race, post, type, outcome, reason, notes, who, role, t, updated, deleted FROM care WHERE updated > ?1 ORDER BY t DESC LIMIT 500').bind(since).all();
+      return json({ now, role, care: r.results.map(x => role === 'medical' ? x : Object.assign(x, { notes: null })) });
+    }
+    if (!(await allow(db, 'care:' + ip, 300, 60 * 60e3))) return json({ error: 'Too many entries from this phone. Wait a while.' }, 429);
+    const list = (Array.isArray(b.entries) ? b.entries : [b.entry]).slice(0, 50).filter(e => e && typeof e === 'object');
+    const KINDS = ['med', 'minor', 'wd'], OUT = ['continued', 'withdrawn', 'transported', ''];
+    const ops = [], saved = [];
+    for (const e of list) {
+      const id = txt(e.id, 40), kind = KINDS.includes(e.kind) ? e.kind : null, outcome = OUT.includes(e.outcome) ? e.outcome : '';
+      if (!/^[A-Za-z0-9-]{8,40}$/.test(id) || !kind) continue;
+      const bib = txt(e.bib, 8).replace(/[^0-9A-Za-z]/g, ''), post = txt(e.post, 60), t = Math.min(now, num(e.t, 0, 1e14) || now);
+      const old = await db.prepare('SELECT id, outcome, deleted FROM care WHERE id = ?1').bind(id).first();
+      const del = e.deleted === true ? now : null;
+      ops.push(db.prepare('INSERT INTO care (id, kind, bib, name, race, post, type, outcome, reason, notes, who, role, t, updated, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) ' +
+        'ON CONFLICT(id) DO UPDATE SET bib = ?3, name = ?4, race = ?5, post = ?6, type = ?7, outcome = ?8, reason = ?9, notes = COALESCE(?10, care.notes), who = ?11, updated = ?14, deleted = ?15')
+        .bind(id, kind, bib || null, txt(e.name, 40) || null, txt(e.race, 20) || null, post || null, txt(e.type, 20) || null, outcome || (kind === 'wd' ? 'withdrawn' : null),
+          txt(e.reason, 200) || null, role === 'medical' ? (txt(e.notes, 1500) || null) : null, txt(e.who, 40) || null, role, t, now, del));
+      // A withdrawal, the first time it's heard: into HQ's log, and an alert to every phone following that runner.
+      const wd = !del && bib && (kind === 'wd' || outcome === 'withdrawn' || outcome === 'transported');
+      if (wd && !(old && !old.deleted && (old.outcome === 'withdrawn' || old.outcome === 'transported'))) {
+        const how = outcome === 'transported' ? 'transported to hospital' : 'withdrawn';
+        const tm = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
+        const where = post ? ' at ' + post : '';
+        ops.push(db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, NULL, ?2, ?3, ?4, ?1)')
+          .bind(now, 'withdrawal', 'Bib ' + bib + ' ' + how + where + ' at ' + tm + (kind === 'med' ? ' (seen by medical)' : e.reason ? ' (' + txt(e.reason, 60) + ')' : ''), txt(e.who, 40) || role));
+        ops.push(db.prepare('INSERT INTO push_msgs (bib, t, title, text, url) VALUES (?1, ?2, ?3, ?4, ?5)')
+          .bind(bib, now, evName(env) + ': bib ' + bib, outcome === 'transported'
+            ? 'Bib ' + bib + ' has been taken to hospital from' + (post ? ' ' + post : ' the course') + ' at ' + tm + '. Call race medical for details.'
+            : 'Bib ' + bib + ' has withdrawn' + where + ' at ' + tm + '. ' + (post ? 'Collect them from ' + post + ', or ask ' + hqName(env) + ' how they\'re getting back.' : 'Ask ' + hqName(env) + ' where to collect them.'), ''));
+      }
+      saved.push(id);
+    }
+    if (ops.length) await db.batch(ops);
+    return json({ ok: true, saved, role });
+  }
+
   // A help request from a phone. Call 000 comes first in the apps; this puts the runner on the board as an incident,
   // with their position, for whoever is at the board. Sending it again (a retry on a weak signal) changes nothing.
   if (path === '/help') {
@@ -706,7 +768,7 @@ async function liveApi(req, env, url, c, ctx) {
     const old = await db.prepare('SELECT num FROM incidents WHERE id = ?1').bind('h-' + id).first();
     if (old) return json({ ok: true, num: old.num, again: true });
     const S = await liveState(env);
-    if (!S.help.open) return json({ closed: true, error: 'Race Control isn\'t taking messages from the app right now' }, 409);
+    if (!S.help.open) return json({ closed: true, error: hqName(env) + ' isn\'t taking messages from the app right now' }, 409);
     if (!(await allow(db, 'help:' + ip, 10, 10 * 60e3)) || !(await allow(db, 'help:all', 60, 10 * 60e3))) return json({ error: 'Too many messages. Call race medical or 000.' }, 429);
     const app = b.app === 'field' ? 'field' : 'runner', urgent = b.urgent === true;
     const lat = num(b.lat, AREA.lat[0], AREA.lat[1]), lon = num(b.lon, AREA.lon[0], AREA.lon[1]), km = num(b.km, 0, 300), bib = txt(b.bib, 8).replace(/[^0-9A-Za-z]/g, '');
@@ -751,7 +813,7 @@ async function liveApi(req, env, url, c, ctx) {
   // A field phone's position, for the board's map. The team code is set on the board and given out at the briefing.
   if (path === '/field/check' || path === '/field/pos') {
     const code = await getSetting(db, 'field_code');
-    if (!code) return json({ off: true, error: 'Race Control hasn\'t turned on position sharing' }, 409);
+    if (!code) return json({ off: true, error: hqName(env) + ' hasn\'t turned on position sharing' }, 409);
     if (path === '/field/check' && !(await allow(db, 'code:' + ip, 12, 10 * 60e3))) return json({ error: 'Too many tries. Wait 10 minutes.' }, 429);
     if (!sameText(txt(b.code, 20).toLowerCase(), code.toLowerCase())) return json({ error: 'That team code isn\'t right' }, 401);
     if (path === '/field/check') return json({ ok: true });
@@ -944,7 +1006,7 @@ const ONE = {
     if ((url.pathname === '/timing/' || url.pathname === '/timing') && req.method === 'GET') {
       try { return await timingRelay(req, env, url, c); } catch (e) { return new Response(JSON.stringify({ error: 'Timing feed unreachable: ' + e.message }), { status: 502, headers: c.headers }); }
     }
-    if (/^\/(live|help|fault|field\/|push\/)/.test(url.pathname)) {
+    if (/^\/(live|help|fault|field\/|push\/|care\/)/.test(url.pathname)) {
       try { return await liveApi(req, env, url, c, ctx); } catch (e) { return new Response(JSON.stringify({ error: 'Live: ' + e.message }), { status: 502, headers: c.headers }); }
     }
     if (url.pathname.startsWith('/archive/')) {
@@ -952,7 +1014,7 @@ const ONE = {
     }
     // Race Control doesn't need GitHub; only the weather refresh below does (Running Wild has no weather watch yet).
     if (url.pathname.startsWith('/rc/')) {
-      try { return await raceControl(req, env, url, c, ctx); } catch (e) { return new Response(JSON.stringify({ error: 'Race Control: ' + e.message }), { status: 502, headers: c.headers }); }
+      try { return await raceControl(req, env, url, c, ctx); } catch (e) { return new Response(JSON.stringify({ error: hqName(env) + ': ' + e.message }), { status: 502, headers: c.headers }); }
     }
     if (!env.GITHUB_TOKEN) return new Response(JSON.stringify({ error: 'The GITHUB_TOKEN secret is not set' }), { status: 500, headers: c.headers });
     try {
@@ -998,11 +1060,13 @@ const ONE = {
 // (tools/SINGLETRACK_WORKER.md).
 const EVENTS = {
   'buffalo-2027': {
+    NAME: 'Buffalo Stampede', HQ: 'Event HQ',
     ARCHIVE_FROM: '2027-03-19T16:00:00+11:00', ARCHIVE_TO: '2027-03-21T20:00:00+11:00',
     SITE_CONFIG: 'https://singletrackevents.github.io/singletrack-app/events/buffalo-2027/config.js',
     REPO: 'SingleTrackEvents/singletrack-app', GARMIN_SHARE: 'Singletracksweeps'
   }
 };
+const hqName = env => env.HQ || 'Event HQ', evName = env => env.NAME || 'SingleTrack';
 const SECRETS = ['RC_PASSWORD', 'TIMING_URL', 'NTFY_TOPIC', 'GARMIN_PASSWORD', 'ARCHIVE_GPS'];
 const keyOf = id => id.replace(/-/g, '_').toUpperCase();
 function eventEnv(env, id) {
