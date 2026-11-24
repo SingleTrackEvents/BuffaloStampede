@@ -1,2 +1,4 @@
-// No fitted splits yet: the 2026 Living It Live archive is still to be pulled. (tools/events/buffalo/build.py)
-window.GPT_SPLITS = null;
+// Buffalo Stampede: the 100k splits fitted to the 2026 finishers (tools/events/buffalo/arrivals.mjs, from the Living It Live GPS
+// tracks). Each point: the share of a runner's finish time used to get there, a + b × finish hours, and its course km (gk).
+// js/races.js reads it by stage (100k); js/tracking.js by the timing feed's race key (miler, the app's name for the main race).
+window.GPT_SPLITS = (function () { const f = {"source":"Living It Live GPS, Buffalo Stampede 2026 100k (tulospalvelu.fi 20260328buffalostamp)","finishers":168,"points":{"Clearspot":{"a":0.12357,"b":-0.002028,"gk":9.004},"Buckland Valley":{"a":0.2066,"b":-0.002893,"gk":18.308},"Eurobin Creek":{"a":0.28683,"b":-0.003835,"gk":26.476},"The Chalet":{"a":0.42017,"b":-0.004435,"gk":36.724},"Cresta Valley":{"a":0.51853,"b":-0.00474,"gk":46.249},"Cresta Valley (second visit)":{"a":0.59155,"b":-0.005004,"gk":53.356},"The Chalet (second pass)":{"a":0.70822,"b":-0.005431,"gk":65.485},"Eurobin Creek (second pass)":{"a":0.78338,"b":-0.003926,"gk":75.853},"Buckland Valley (second pass)":{"a":0.8449,"b":-0.002769,"gk":84.011},"Clearspot (second pass)":{"a":0.93951,"b":-0.002108,"gk":91.614}}}; return { '100k': f, miler: f }; })();

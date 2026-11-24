@@ -1,14 +1,16 @@
-// One-off: save the OpenTopoMap tiles 2 km either side of every course in the event (zoom 8 to 15) into tiles/topo/,
-// and write data/tiles.js (the list the apps use to save the map for offline).
+// One-off per event: save the OpenTopoMap tiles 2 km either side of every course in the event (zoom 8 to 15) into
+// events/<id>/tiles/topo/, and write events/<id>/tiles.js (the list the apps use to save the map for offline).
 // Phones then save the map from our own site, so OpenTopoMap's free servers are only asked once.
 // Polite: one tile at a time with a pause, identified, and tiles already saved are skipped.
-// Run from the repo root: node tools/fetch_topo_tiles.mjs   (add --list to only rewrite data/tiles.js)
+// Run from the repo root: node tools/fetch_topo_tiles.mjs buffalo-2027   (add --list to only rewrite tiles.js)
 import fs from 'fs';
 import path from 'path';
 
-const BUF_KM = 2, ZMIN = 8, ZMAX = 15, OUT = 'tiles/topo';
+const EV = process.argv.slice(2).find(a => !a.startsWith('--'));
+if (!EV || !fs.existsSync(path.join('events', EV))) { console.error('Usage: node tools/fetch_topo_tiles.mjs <event id, e.g. buffalo-2027> [--list]'); process.exit(1); }
+const DIR = path.join('events', EV), BUF_KM = 2, ZMIN = 8, ZMAX = 15, OUT = path.join(DIR, 'tiles/topo');
 globalThis.window = globalThis;
-for (const f of ['data/config.js', 'data/course.js', 'data/courses.js', 'data/access-edits.js', 'js/engine.js', 'data/contingency.js']) (0, eval)(fs.readFileSync(f, 'utf8'));
+for (const f of ['config.js', 'course.js', 'courses.js', 'access-edits.js', '../../js/engine.js', 'contingency.js']) { const p = path.join(DIR, f); if (fs.existsSync(p)) (0, eval)(fs.readFileSync(p, 'utf8')); }
 const GPT = globalThis.GPT;
 
 const lon2x = (lon, z) => (lon + 180) / 360 * 2 ** z;
@@ -35,7 +37,7 @@ if (!process.argv.includes('--list')) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     for (let tries = 0; ; tries++) {
       try {
-        const res = await fetch(`https://${'abc'[n % 3]}.tile.opentopomap.org/${k}.png`, { headers: { 'User-Agent': 'SingleTrack Running Wild safety app, one-off offline corridor (singletrack.com.au)' } });
+        const res = await fetch(`https://${'abc'[n % 3]}.tile.opentopomap.org/${k}.png`, { headers: { 'User-Agent': 'SingleTrack safety app, one-off offline corridor (singletrack.com.au)' } });
         if (!res.ok) throw new Error('HTTP ' + res.status);
         fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
         got++;
@@ -58,8 +60,8 @@ const bytes = have.reduce((s, k) => s + fs.statSync(path.join(OUT, k + '.png')).
 const tree = {};
 have.forEach(k => { const [z, x, y] = k.split('/').map(Number); ((tree[z] = tree[z] || {})[x] = tree[z][x] || []).push(y); });
 const version = new Date().toISOString().slice(0, 10) + '-' + have.length;
-fs.writeFileSync('data/tiles.js', `// Topo map tiles saved on this site for offline use (written by tools/fetch_topo_tiles.mjs).
-// OpenTopoMap (CC-BY-SA), map data OpenStreetMap contributors and SRTM. ${BUF_KM} km either side of both courses and the contingency, zoom ${ZMIN} to ${ZMAX}.
+fs.writeFileSync(path.join(DIR, 'tiles.js'), `// Topo map tiles saved on this site for offline use (written by tools/fetch_topo_tiles.mjs).
+// OpenTopoMap (CC-BY-SA), map data OpenStreetMap contributors and SRTM. ${BUF_KM} km either side of every course${globalThis.GPT100_CONTINGENCY ? ' and the contingency' : ''}, zoom ${ZMIN} to ${ZMAX}.
 window.GPT_TILES = { version: '${version}', count: ${have.length}, bytes: ${bytes}, zmax: ${ZMAX}, tree: ${JSON.stringify(tree)} };
 `);
-console.log(`data/tiles.js: ${have.length} tiles, ${(bytes / 1e6).toFixed(1)} MB`);
+console.log(`${DIR}/tiles.js: ${have.length} tiles, ${(bytes / 1e6).toFixed(1)} MB`);

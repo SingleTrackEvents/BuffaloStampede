@@ -219,7 +219,7 @@ Four walk-throughs show the flow end to end. Each step is one tap or less for th
 - **Track grades, emergency markers and helicopter landing sites: not for 2027** (decided). Carry-outs use the "not yet assessed" times across the course. Ambulance intercept points and helicopter landing zones go in once Ambulance Victoria confirms them (Medical and Rescue Plan, open item 6).
 - **what3words** for the whole course, stored for offline.
 - **The runner list** from Race Roster, and the volunteer roster (section 9).
-- **The 2026 Buffalo tracking archive** (Living It Live event `20260328buffalostamp`) to fit real splits for Due now and cut-off predictions, as we did for the GPT100.
+- **The 2026 Buffalo tracking archive** (Living It Live event `20260328buffalostamp`) to fit real splits for Due now and cut-off predictions, as we did for the GPT100. Done for the 100k (November 2026): the only race tracked in 2026.
 
 ## 8. Future proofing
 
