@@ -1,5 +1,5 @@
 // Race HQ (the Control tab): where everyone is, what's happening now, and one quick log, for a small Running Wild
-// crew at the finish. Shared between HQ devices through the Running Wild Worker's database (tools/RUNNING_WILD_WORKER.md),
+// crew at the finish. Shared between HQ devices through the event's database on the SingleTrack Worker (tools/SINGLETRACK_WORKER.md),
 // unlocked with the staff password. Rebuilt from the GPT100's Race Control board (24 November 2026): no dispatch steps,
 // units or severities; an entry is open until someone marks it Sorted. Changes wait on the device with no signal.
 (function () {
@@ -265,7 +265,7 @@
   // ---------- rendering ----------
   function render() {
     if (!shown) return;
-    if (!BASE) { $('rcBody').innerHTML = '<div class="rc-msg"><h2>Race HQ</h2><p>Race HQ needs the Running Wild Worker. See tools/RUNNING_WILD_WORKER.md.</p></div>'; built = false; return; }
+    if (!BASE) { $('rcBody').innerHTML = '<div class="rc-msg"><h2>Race HQ</h2><p>Race HQ needs the SingleTrack Worker. See tools/SINGLETRACK_WORKER.md.</p></div>'; built = false; return; }
     if (!unlocked()) {
       built = false; if (map) { map.remove(); map = null; layer = null; }
       // The staff password, checked with the Worker (js/medplan.js). The device remembers it until Lock.
@@ -282,7 +282,7 @@
     }
     if (lastErr && /set up/.test(lastErr) && !incidents.size) {
       built = false; if (map) { map.remove(); map = null; layer = null; }
-      $('rcBody').innerHTML = `<div class="rc-msg"><h2>Race HQ</h2><p>${esc(lastErr)}.</p><p>Setup steps are in tools/RUNNING_WILD_WORKER.md.</p></div>`;
+      $('rcBody').innerHTML = `<div class="rc-msg"><h2>Race HQ</h2><p>${esc(lastErr)}.</p><p>Setup steps are in tools/SINGLETRACK_WORKER.md.</p></div>`;
       return;
     }
     if (!built) build();
@@ -545,7 +545,7 @@
   // The sweeps' Garmin inReach units: whether the Worker is reading their MapShare, and the MapShare page itself.
   function garminHTML() {
     const g = (live && live.garmin) || {}, M = C.tracking && C.tracking.mapshare;
-    const state = !g.on ? 'Not set up on the Worker yet (the GARMIN_PASSWORD secret, tools/RUNNING_WILD_WORKER.md).'
+    const state = !g.on ? 'Not set up on the Worker yet (the GARMIN_PASSWORD secret, tools/SINGLETRACK_WORKER.md).'
       : g.err ? 'The Worker can\'t read MapShare: ' + esc(g.err) + '.'
       : !g.last ? 'The Worker is reading MapShare; no points in the last 24 hours.'
       : now() - g.last < 6 * 3600e3 ? 'On the map in purple. Last inReach point ' + ageOf(g.last) + '.'

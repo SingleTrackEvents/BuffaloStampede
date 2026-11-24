@@ -19,8 +19,8 @@ What's built on the shared core so far, and what's next. The scope is [SCOPE.md]
 | --- | --- | --- |
 | 1 | Event picker on every page | Today an event is picked with `?event=` in the address |
 | 2 | Modules switch tabs on and off (`ST.has`) | Buffalo needs Medical and Risk, Running Wild doesn't. The staff app still has Running Wild's three tabs |
-| 3 | One Worker for every event (Control board, line to the phones, relays), keyed by event | Buffalo's `refreshUrl` is empty, so its Control board is offline |
-| 4 | Weather watch per event (GitHub Actions, `weather-data/<event>/`) | Buffalo's Weather tab has no data until it runs |
+| 3 | ~~One Worker for every event~~ Done: `singletrack-live` (tools/SINGLETRACK_WORKER.md). Buffalo's staff password still to set in Cloudflare | |
+| 4 | ~~Weather watch per event~~ Done: runs from the default branch once `main` is it | |
 | 5 | Setup tools take an event (`tools/*.mjs`, `tools/*.py` still write to `data/`) | So drive times, what3words, tiles and the medical plan can be made for any event |
 | 6 | Time zone per event | Times assume Melbourne daylight saving (UTC+11). Fine for Buffalo; the Prom (1 May) is UTC+10 |
 | 7 | Neutral names for the data globals (`GPT100_DATA` and the rest) | Tidy-up, once the above is settled |

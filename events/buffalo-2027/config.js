@@ -26,8 +26,9 @@ window.GPT100_CONFIG = {
   weather: {
     // The hourly weather watch isn't set up for this repository yet: the Weather tab says its data is old until it is.
     dataUrl: 'https://raw.githubusercontent.com/SingleTrackEvents/singletrack-app/weather-data/buffalo-2027/',
-    // The Worker (Control board, the line to the phones). Not set up for Buffalo yet: the Control board stays offline.
-    refreshUrl: '',
+    // The shared SingleTrack Worker, Buffalo's own address on it (tools/SINGLETRACK_WORKER.md): the Control board,
+    // the line to the phones and the tracking relays, with Buffalo's own database and staff password.
+    refreshUrl: 'https://singletrack-live.chad-ad3.workers.dev/e/buffalo-2027',
     event: { start: '2027-03-19T18:00', end: '2027-03-21T18:00' },  // first start (Twilight 10k) to last cut-off (42k)
     alertsFrom: '2027-03-12T00:00',
     dailyUpdate: { from: '2027-03-12', hour: 9 },

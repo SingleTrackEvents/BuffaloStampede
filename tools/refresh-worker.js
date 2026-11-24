@@ -147,11 +147,14 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS ra (id TEXT PRIMARY KEY, data TEXT NOT NULL, updated INTEGER NOT NULL, version INTEGER NOT NULL)',
   'CREATE INDEX IF NOT EXISTS ra_updated ON ra (updated)'
 ];
-let schemaReady = false;
+// What the Worker remembers between requests, kept for each event's database on its own (one Worker serves every
+// event, so one event's notices or tables must never stand in for another's).
+const STATE = new WeakMap();
+const mem = db => { let v = STATE.get(db); if (!v) STATE.set(db, v = { schemaReady: false, archiveReady: false, liveReady: false, rcBeat: 0, liveMemo: { t: 0, v: null }, garminAt: 0 }); return v; };
 async function ensureSchema(db) {
-  if (schemaReady) return;
+  if (mem(db).schemaReady) return;
   await db.batch(SCHEMA.map(q => db.prepare(q)));
-  schemaReady = true;
+  mem(db).schemaReady = true;
 }
 function sameText(a, b) { // compare without leaking the length of the match
   a = String(a || ''); b = String(b || '');
@@ -200,7 +203,7 @@ async function raceControl(req, env, url, c, ctx) {
       db.prepare('SELECT COUNT(*) AS n FROM push_subs')
     ];
     // A board that's open is a board that's watched: help requests from the phones are only taken while one is.
-    if (now - rcBeat > 45e3) { rcBeat = now; ops.push(setSetting(db, 'rc_seen', now, now)); }
+    if (now - mem(db).rcBeat > 45e3) { mem(db).rcBeat = now; ops.push(setSetting(db, 'rc_seen', now, now)); }
     const [inc, units, log, st, nt, fp, fa, ps] = await db.batch(ops);
     const S = Object.fromEntries(st.results.map(r => [r.k, r.v]));
     return json({
@@ -289,7 +292,7 @@ async function raceControl(req, env, url, c, ctx) {
   // alerts on. { text, level: 'info' | 'alert', aud: 'all' | 'runner' | 'field', mins } or { id, clear: true }.
   if (url.pathname === '/rc/notice') {
     await ensureLive(db);
-    liveMemo.t = 0;
+    mem(db).liveMemo.t = 0;
     if (body.clear) {
       const id = String(body.id || '').slice(0, 40), old = await db.prepare('SELECT data FROM notices WHERE id = ?1').bind(id).first();
       if (!old) return json({ error: 'No such notice' }, 404);
@@ -314,7 +317,7 @@ async function raceControl(req, env, url, c, ctx) {
   // The board's switches for the phones: whether help requests are taken, and the team code for field phones.
   if (url.pathname === '/rc/settings') {
     await ensureLive(db);
-    liveMemo.t = 0;
+    mem(db).liveMemo.t = 0;
     const p = body.patch || {}, ops = [];
     if (typeof p.help_on === 'boolean') { ops.push(setSetting(db, 'help_on', p.help_on ? '1' : '0', now), addLog(null, 'settings', p.help_on ? 'Help requests from the apps: on' : 'Help requests from the apps: off')); }
     if (typeof p.field_code === 'string') {
@@ -353,11 +356,10 @@ const ARCHIVE_GPS_MIN = 60;     // minutes between copies of each GPS event's da
 // Each data.lst copy holds every fix before it, so older copies are thinned out to keep the database small (D1's free
 // plan allows 500 MB a database, shared with Race Control): the 2 latest are kept, and the last one of every 12 hours.
 const ARCHIVE_GPS_KEEP = 2, ARCHIVE_GPS_BLOCK = 12 * 3600e3;
-let archiveReady = false;
 async function ensureArchive(db) {
-  if (archiveReady) return;
+  if (mem(db).archiveReady) return;
   await db.batch(ARCHIVE_SCHEMA.map(q => db.prepare(q)));
-  archiveReady = true;
+  mem(db).archiveReady = true;
 }
 async function gzip(buf) {
   return new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
@@ -485,7 +487,7 @@ async function alertHealth(env, db, issues) {
   if (ops.length) await db.batch(ops);
   if (!env.NTFY_TOPIC) return;
   const send = (title, body, priority, tags) => fetch('https://ntfy.sh/' + encodeURIComponent(env.NTFY_TOPIC), { method: 'POST', body,
-    headers: { Title: title, Priority: String(priority), Tags: tags, Click: 'https://singletrackevents.github.io/runningwild/' } }).catch(() => { });
+    headers: { Title: title, Priority: String(priority), Tags: tags, Click: 'https://singletrackevents.github.io/singletrack-app/' } }).catch(() => { });
   for (const i of fresh) await send(i.level === 'bad' ? 'GPT100 feed problem' : 'GPT100 feed warning', i.text, i.level === 'bad' ? 4 : 3, 'satellite');
   for (const g of gone) await send('GPT100 feed problem cleared', 'Cleared: ' + g.text, 2, 'white_check_mark');
 }
@@ -581,11 +583,10 @@ const LIVE_SCHEMA = [
 // Worker took the Grampians only, which turned away every fix from Mt Buller, the Prom, Baw Baw and the Alps).
 const AREA = { lat: [-39.6, -33.5], lon: [140.5, 150.5] };
 const HELP_WATCH_MS = 3 * 60e3;   // help requests are taken while a board has been open this recently
-let liveReady = false, rcBeat = 0, liveMemo = { t: 0, v: null };
 async function ensureLive(db) {
-  if (liveReady) return;
+  if (mem(db).liveReady) return;
   await db.batch(SCHEMA.concat(LIVE_SCHEMA).map(q => db.prepare(q)));
-  liveReady = true; schemaReady = true;
+  mem(db).liveReady = true; mem(db).schemaReady = true;
 }
 const setSetting = (db, k, v, now) => db.prepare('INSERT INTO settings (k, v, updated) VALUES (?1, ?2, ?3) ON CONFLICT(k) DO UPDATE SET v = ?2, updated = ?3').bind(k, String(v), now);
 const getSetting = async (db, k) => ((await db.prepare('SELECT v FROM settings WHERE k = ?1').bind(k).first()) || {}).v;
@@ -615,9 +616,8 @@ const txt = (v, n) => typeof v === 'string' || typeof v === 'number' ? String(v)
 
 // What every phone reads: the notices showing, whether help requests are being taken, and the alert key.
 async function liveState(env) {
-  const now = Date.now();
-  if (liveMemo.v && now - liveMemo.t < 10e3) return Object.assign({ now }, liveMemo.v);
-  const db = env.DB;
+  const now = Date.now(), db = env.DB, memo = mem(db).liveMemo;
+  if (memo.v && now - memo.t < 10e3) return Object.assign({ now }, memo.v);
   await ensureLive(db);
   const [st, nt] = await db.batch([
     db.prepare("SELECT k, v FROM settings WHERE k IN ('help_on', 'rc_seen', 'field_code', 'vapid_pub')"),
@@ -630,7 +630,7 @@ async function liveState(env) {
     field: { on: !!S.field_code },
     push: { key: S.vapid_pub || (await vapid(db)).pub }
   };
-  liveMemo = { t: now, v };
+  mem(db).liveMemo = { t: now, v };
   return Object.assign({ now }, v);
 }
 
@@ -640,16 +640,15 @@ async function liveState(env) {
 // new point goes into field_track (app 'garmin') and the latest of each unit into field_pos, so they show on the
 // Control map with the field phones and come out in Download tracks. Only points newer than the last one seen are
 // asked for. An inReach in SOS is flagged (sos) on the board.
-let garminAt = 0;
 async function garminPoll(env, db, now) {
   const c = cfg(env);
-  if (!env.GARMIN_PASSWORD || !c.GARMIN_SHARE || now - garminAt < 55e3) return null;
-  garminAt = now;
+  if (!env.GARMIN_PASSWORD || !c.GARMIN_SHARE || now - mem(db).garminAt < 55e3) return null;
+  mem(db).garminAt = now;
   await ensureLive(db);
   const last = +(await getSetting(db, 'garmin_last')) || 0;
   const since = new Date(Math.max(last + 1000, now - (+c.GARMIN_DAYS || 1) * 24 * 3600e3)).toISOString().slice(0, 19) + 'Z';
   const r = await fetch(`https://share.garmin.com/Feed/Share/${encodeURIComponent(c.GARMIN_SHARE)}?d1=${since}`,
-    { headers: { Authorization: 'Basic ' + btoa(':' + env.GARMIN_PASSWORD), 'User-Agent': 'SingleTrack Running Wild' } });
+    { headers: { Authorization: 'Basic ' + btoa(':' + env.GARMIN_PASSWORD), 'User-Agent': 'SingleTrack app' } });
   if (!r.ok) { await setSetting(db, 'garmin_err', 'HTTP ' + r.status + ' at ' + new Date(now).toISOString(), now).run(); return { error: r.status }; }
   const kml = await r.text(), pts = [];
   for (const m of kml.matchAll(/<Placemark>([\s\S]*?)<\/Placemark>/g)) {
@@ -744,7 +743,7 @@ async function liveApi(req, env, url, c, ctx) {
     if (!had) {
       await db.prepare('DELETE FROM faults WHERE sig NOT IN (SELECT sig FROM faults ORDER BY last DESC LIMIT 300)').run();
       if (env.NTFY_TOPIC && ctx) ctx.waitUntil(fetch('https://ntfy.sh/' + encodeURIComponent(env.NTFY_TOPIC), { method: 'POST', body: `${d.app || 'app'} build ${d.build || '?'}: ${d.msg} (${d.src}:${d.line})`,
-        headers: { Title: 'Running Wild app fault (new)', Priority: '3', Tags: 'bug', Click: 'https://singletrackevents.github.io/runningwild/' } }).catch(() => { }));
+        headers: { Title: 'SingleTrack app fault (new) ' + (env.EVENT || ''), Priority: '3', Tags: 'bug', Click: 'https://singletrackevents.github.io/singletrack-app/' } }).catch(() => { }));
     }
     return json({ ok: true });
   }
@@ -934,7 +933,8 @@ async function pushRun(env, now, force) {
 }
 
 
-export default {
+// One event's Worker: everything above, for the event whose database and settings eventEnv() hands it.
+const ONE = {
   async fetch(req, env, ctx) {
     const url = new URL(req.url), c = cors(env, req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: c.headers });
@@ -964,7 +964,7 @@ export default {
         if (!c.ok) return new Response(JSON.stringify({ error: 'Not allowed from this site' }), { status: 403, headers: c.headers });
         return new Response(JSON.stringify(await maybeStart(env, url.searchParams.get('models') === '1')), { headers: c.headers });
       }
-      return new Response(JSON.stringify({ ok: true, about: 'Running Wild Worker' }), { headers: c.headers });
+      return new Response(JSON.stringify({ ok: true, about: 'SingleTrack Worker', event: env.EVENT || null }), { headers: c.headers });
     } catch (e) {
       return new Response(JSON.stringify({ error: e.message }), { status: 502, headers: c.headers });
     }
@@ -987,5 +987,45 @@ export default {
       if (env.DB) await garminPoll(env, env.DB, now).catch(e => console.log('garmin: ' + e.message));
       if (env.DB) await pushRun(env, now).then(r => { if (r && (r.news || r.sent)) console.log('alerts: ' + JSON.stringify(r)); }).catch(e => console.log('alerts failed: ' + e.message));
     })());
+  }
+};
+
+// ---------- one Worker for every event ----------
+// Each event has its own address (https://singletrack-live.chad-ad3.workers.dev/e/<event id>/...), its own D1 database
+// (bound as DB_<EVENT_ID>, for example DB_BUFFALO_2027) and, if set, its own secrets with the same suffix
+// (RC_PASSWORD_BUFFALO_2027, TIMING_URL_..., NTFY_TOPIC_..., GARMIN_PASSWORD_...). An event's settings are in EVENTS.
+// Adding an event: an entry here, a new D1 database bound as DB_<ID>, and its RC_PASSWORD_<ID> secret
+// (tools/SINGLETRACK_WORKER.md).
+const EVENTS = {
+  'buffalo-2027': {
+    ARCHIVE_FROM: '2027-03-19T16:00:00+11:00', ARCHIVE_TO: '2027-03-21T20:00:00+11:00',
+    SITE_CONFIG: 'https://singletrackevents.github.io/singletrack-app/events/buffalo-2027/config.js',
+    REPO: 'SingleTrackEvents/singletrack-app', GARMIN_SHARE: 'Singletracksweeps'
+  }
+};
+const SECRETS = ['RC_PASSWORD', 'TIMING_URL', 'NTFY_TOPIC', 'GARMIN_PASSWORD', 'ARCHIVE_GPS'];
+const keyOf = id => id.replace(/-/g, '_').toUpperCase();
+function eventEnv(env, id) {
+  const k = keyOf(id), db = env['DB_' + k];
+  if (!EVENTS[id] || !db) return null;
+  const e = Object.assign({}, env, EVENTS[id], { DB: db, EVENT: id });
+  // An event's own secret wins; the Worker-wide one is the fallback, except the staff password, which is never shared.
+  for (const s of SECRETS) e[s] = env[s + '_' + k] || (s === 'RC_PASSWORD' ? undefined : env[s]);
+  return e;
+}
+
+export default {
+  async fetch(req, env, ctx) {
+    const url = new URL(req.url), c = cors(env, req);
+    if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: c.headers });
+    const m = url.pathname.match(/^\/e\/([a-z0-9-]{1,40})(\/.*)?$/);
+    if (!m) return new Response(JSON.stringify({ ok: true, about: 'SingleTrack Worker', events: Object.keys(EVENTS).filter(id => env['DB_' + keyOf(id)]) }), { headers: c.headers });
+    const e = eventEnv(env, m[1]);
+    if (!e) return new Response(JSON.stringify({ error: 'No event ' + m[1] + ' on this Worker' }), { status: 404, headers: c.headers });
+    const inner = new URL(req.url); inner.pathname = m[2] || '/';
+    return ONE.fetch(new Request(inner.toString(), req), e, ctx);
+  },
+  async scheduled(event, env, ctx) {
+    for (const id of Object.keys(EVENTS)) { const e = eventEnv(env, id); if (e) await ONE.scheduled(event, e, ctx); }
   }
 };

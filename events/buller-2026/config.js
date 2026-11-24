@@ -25,7 +25,7 @@ window.GPT100_CONFIG = {
   weather: {
     // Where the hourly weather watch publishes (.github/workflows/weather.yml, a separate branch so the site isn't rebuilt).
     dataUrl: 'https://raw.githubusercontent.com/SingleTrackEvents/runningwild/weather-data/',
-    // The Running Wild Worker (tools/refresh-worker.js; setup in tools/RUNNING_WILD_WORKER.md): the Control board,
+    // The Running Wild Worker (runningwild-live, set up from the runningwild repository's tools/RUNNING_WILD_WORKER.md): the Control board,
     // the line to the phones and the tracking test's position history.
     refreshUrl: 'https://runningwild-live.chad-ad3.workers.dev',
     event: { start: '2026-12-06T08:00', end: '2026-12-06T17:00' },  // first start to last cut-off
@@ -62,7 +62,7 @@ window.GPT100_CONFIG = {
   // their position with the team code show on the Control board's map (js/live.js, tools/LIVE.md).
   planPlaces: {},
   // mapshare: the sweeps' Garmin inReach MapShare page (the MapShare password is asked there). The Worker reads their
-  // positions onto the Control map with the GARMIN_PASSWORD secret (tools/RUNNING_WILD_WORKER.md).
+  // positions onto the Control map with the GARMIN_PASSWORD secret (the runningwild repository's tools/RUNNING_WILD_WORKER.md).
   tracking: { url: '', results: '', label: 'Live tracking', gps: [], chip: '', credit: '', mapshare: 'https://share.garmin.com/Singletracksweeps' },
   // what3words API key. It's locked in the what3words dashboard to singletrackevents.github.io,
   // so it only works from the live site. Leave blank to be asked once on each device instead.
