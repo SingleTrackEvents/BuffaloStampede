@@ -250,3 +250,20 @@ body.field .fd-rp .btn.small { min-height: 44px; }
 .stn-hold .btn.primary { background: #fff; color: #b3261e; border-color: #fff; width: 100%; }
 .stn-hold.acked { background: #7a1c16; }
 .stn-hand { white-space: pre-wrap; background: rgba(127,127,127,.1); border-radius: 8px; padding: 8px; }
+/* Stocktake and the yard (js/station.js) */
+.stk { margin: 6px 0 10px; }
+.stk-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.stk-name small { display: block; opacity: .7; font-size: 12px; }
+.stk-row .care-chips { margin: 0; grid-column: 1 / -1; }
+.stk-row .stk-lv { grid-column: 1; }
+.stk-n { width: 72px; min-height: 36px; font-size: 15px; padding: 0 6px; border: 2px solid var(--line); border-radius: 8px; grid-row: 1; grid-column: 2; }
+.stk-row .stk-lv + .stk-n { grid-row: 2; }
+.run-row .stk-n { grid-row: 1; }
+.care-chip.lv-low.on { background: #d68910; border-color: #d68910; }
+.care-chip.lv-out.on { background: var(--red, #c0392b); border-color: var(--red, #c0392b); }
+.stk-sum { font-size: 14px; margin: 4px 0; }
+.stk-out, .stk-out b { color: var(--red, #c0392b); }
+.stk-low { color: #b9770e; }
+.care-list li.stk-late { border-left: 4px solid var(--red, #c0392b); padding-left: 8px; }
+.care-list li.past { opacity: .55; }
+details > summary { cursor: pointer; font-weight: 700; padding: 8px 0; }

@@ -6,7 +6,7 @@
 // few seconds (weak signal). Leaflet and the fonts are served with the app (lib/) and saved with each build, so nothing
 // the pages need comes from another site. Map tiles are cached as they're used; the topo map can also be saved whole
 // (js/basemap.js).
-const BUILD = '24';
+const BUILD = '25';
 const VERSION = 'st-v' + BUILD;
 const NEXT = 'st-next-v'; // + a newer build: files for its pages, fetched before that build's worker is in
 // Pages, manifests and icons, saved by their own address.
@@ -26,7 +26,7 @@ const FILES = [
 const PRECACHE_EVENTS = ['buffalo-2027'];
 const EVENT_FILES = ['config.js', 'course.js', 'courses.js', 'course-w3w.js', 'access-edits.js', 'medplan.enc.js', 'register.enc.js', 'safety-officers.js',
   'pacing.js', 'splits.js', 'contingency.js', 'tiles.js', 'helipads.js', 'track-grades.js', 'demo-runners.js', 'races.js', 'runner-courses.js',
-  'runner-info.js', 'safety-cards.js', 'crew-drives.js', 'cover.js', 'conditions.js'];
+  'runner-info.js', 'safety-cards.js', 'crew-drives.js', 'cover.js', 'conditions.js', 'stock.js'];
 FILES.push(...PRECACHE_EVENTS.flatMap(id => EVENT_FILES.map(f => 'events/' + id + '/' + f)));
 PAGES.push(...PRECACHE_EVENTS.flatMap(id => ['logo.png', 'logo-light.png', 'icon-48.png', 'icon-180.png', 'icon-192.png', 'icon-512.png',
   'manifest-staff.webmanifest', 'manifest-field.webmanifest', 'manifest-runner.webmanifest'].map(f => 'events/' + id + '/' + f)));
