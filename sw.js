@@ -6,12 +6,12 @@
 // few seconds (weak signal). Leaflet and the fonts are served with the app (lib/) and saved with each build, so nothing
 // the pages need comes from another site. Map tiles are cached as they're used; the topo map can also be saved whole
 // (js/basemap.js).
-const BUILD = '14';
+const BUILD = '16';
 const VERSION = 'st-v' + BUILD;
 const NEXT = 'st-next-v'; // + a newer build: files for its pages, fetched before that build's worker is in
 // Pages, manifests and icons, saved by their own address.
-const PAGES = ['./', 'index.html', 'field.html', 'runner.html', 'map.html', 'admin.html', 'manifest.webmanifest', 'manifest-field.webmanifest', 'manifest-runner.webmanifest',
-  'icons/logo.png', 'icons/rw-logo.png', 'icons/icon-48.png', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
+// (Each event's own logos, icons and install files are added below, with its event pack.)
+const PAGES = ['./', 'index.html', 'field.html', 'runner.html', 'map.html', 'admin.html',
   // The Leaflet images and the fonts (asked for by lib/leaflet.css and lib/fonts.css, by their own address).
   'lib/images/layers.png', 'lib/images/layers-2x.png', 'lib/images/marker-icon.png', 'lib/images/marker-icon-2x.png', 'lib/images/marker-shadow.png',
   'lib/fonts/bebas-neue-latin.woff2', 'lib/fonts/bebas-neue-latin-ext.woff2', 'lib/fonts/montserrat-latin.woff2', 'lib/fonts/montserrat-latin-ext.woff2',
@@ -28,7 +28,8 @@ const EVENT_FILES = ['config.js', 'course.js', 'courses.js', 'course-w3w.js', 'a
   'pacing.js', 'splits.js', 'contingency.js', 'tiles.js', 'helipads.js', 'track-grades.js', 'demo-runners.js', 'races.js', 'runner-courses.js',
   'runner-info.js', 'safety-cards.js', 'crew-drives.js'];
 FILES.push(...PRECACHE_EVENTS.flatMap(id => EVENT_FILES.map(f => 'events/' + id + '/' + f)));
-PAGES.push(...PRECACHE_EVENTS.flatMap(id => ['events/' + id + '/logo.png', 'events/' + id + '/logo-light.png']));
+PAGES.push(...PRECACHE_EVENTS.flatMap(id => ['logo.png', 'logo-light.png', 'icon-48.png', 'icon-180.png', 'icon-192.png', 'icon-512.png',
+  'manifest-staff.webmanifest', 'manifest-field.webmanifest', 'manifest-runner.webmanifest'].map(f => 'events/' + id + '/' + f)));
 const SHELL = PAGES.concat(FILES.map(u => u + '?v=' + BUILD));
 const TILES = 'st-tiles';
 const OFFLINE_MAP = 'st-offline-map'; // the saved topo map (js/basemap.js); kept across updates
@@ -273,9 +274,9 @@ self.addEventListener('fetch', e => {
 // still says there's news, since a push must always show something.
 self.addEventListener('push', e => {
   e.waitUntil((async () => {
-    let items = [];
+    let items = [], base = '';
     try {
-      const live = await caches.open(LIVE), base = await live.match('/__live-base').then(r => r ? r.text() : '');
+      const live = await caches.open(LIVE); base = await live.match('/__live-base').then(r => r ? r.text() : '');
       // Which phone this is to the Worker: a hash of its push address (the app leaves it here when alerts go on).
       let hash = await live.match('/__live-ep').then(r => r ? r.text() : '');
       if (base && !hash) {
@@ -287,12 +288,14 @@ self.addEventListener('push', e => {
         items = (await res.json()).items || [];
       }
     } catch (err) { }
-    const icon = 'icons/icon-192.png', badge = 'icons/icon-48.png';
-    if (!items.length) return self.registration.showNotification('SingleTrack', { body: 'There\'s news for you. Open the app to see it.', icon, badge, tag: 'st-news', data: { url: 'field.html' } });
+    // The event's own icon, from its address on the SingleTrack Worker (.../e/<event id>).
+    const ev = (base.match(/\/e\/([a-z0-9-]+)$/) || [])[1], q = ev ? '?event=' + ev : '';
+    const icon = ev ? 'events/' + ev + '/icon-192.png' : '', badge = ev ? 'events/' + ev + '/icon-48.png' : '';
+    if (!items.length) return self.registration.showNotification('SingleTrack', { body: 'There\'s news for you. Open the app to see it.', icon, badge, tag: 'st-news', data: { url: 'field.html' + q } });
     for (const m of items) {
       const runner = /^[0-9A-Za-z]{1,8}$/.test(m.bib || '');
-      await self.registration.showNotification(m.title || 'GPT100', { body: m.text || '', icon, badge, tag: 'st-' + (runner ? m.bib : 'notice-' + m.id), renotify: true, timestamp: m.t,
-        data: { url: runner ? 'field.html#bib=' + m.bib : '' } });
+      await self.registration.showNotification(m.title || 'SingleTrack', { body: m.text || '', icon, badge, tag: 'st-' + (runner ? m.bib : 'notice-' + m.id), renotify: true, timestamp: m.t,
+        data: { url: runner ? 'field.html' + q + '#bib=' + m.bib : '' } });
     }
   })());
 });

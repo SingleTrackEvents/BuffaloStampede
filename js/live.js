@@ -98,8 +98,8 @@
     const hidden = load(HIDE, []), list = (S.notices || []).filter(mine), shown = list.filter(n => showAll || !hidden.includes(n.id));
     const folded = list.filter(n => !showAll && hidden.includes(n.id) && n.level === 'alert').length;
     const to = n => APP === 'staff' || APP === 'map' ? (n.aud === 'runner' ? ' · to runners and crews' : n.aud === 'field' ? ' · to the field app' : ' · to every phone') : '';
-    host.innerHTML = shown.map(n => `<div class="lv-n${n.level === 'alert' ? ' lv-alert' : ''}" data-id="${esc(n.id)}"><p><b>Race Control, ${tf.format(n.t)}${to(n)}${fresh(10 * 60e3) ? '' : ' (saved)'}</b>${esc(n.text)}</p><button type="button" class="lv-n-x" data-hide="${esc(n.id)}">Hide</button></div>`).join('') +
-      (folded ? `<button type="button" class="lv-n-more" data-show="1">${folded} important notice${folded > 1 ? 's' : ''} from Race Control · Show</button>` : '');
+    host.innerHTML = shown.map(n => `<div class="lv-n${n.level === 'alert' ? ' lv-alert' : ''}" data-id="${esc(n.id)}"><p><b>${ST.hq}, ${tf.format(n.t)}${to(n)}${fresh(10 * 60e3) ? '' : ' (saved)'}</b>${esc(n.text)}</p><button type="button" class="lv-n-x" data-hide="${esc(n.id)}">Hide</button></div>`).join('') +
+      (folded ? `<button type="button" class="lv-n-more" data-show="1">${folded} important notice${folded > 1 ? 's' : ''} from ${ST.hq} · Show</button>` : '');
     host.hidden = !host.innerHTML;
     // The map tabs size themselves to the screen: they give this much of it up.
     document.documentElement.style.setProperty('--lv-h', (host.hidden ? 0 : host.offsetHeight) + 'px');
@@ -177,7 +177,7 @@
         const x = await call('/field/pos', { code: c.code, id: c.id, name: c.name, src: window.RW_APK ? 'apk' : 'web', fixes: batch }, 20000);
         if (x.ok || x.status === 400) save(FQ, load(FQ, []).slice(batch.length));
         const left = load(FQ, []).length;
-        shareMsg = x.ok ? 'Race Control has your position, ' + tf.format(Date.now()) + '.' + (left ? ` ${left} more to send.` : '') : x.status === 401 ? 'The team code isn\'t right: check it with Race Control.' : x.status === 409 ? 'Race Control hasn\'t turned on position sharing.' : 'Couldn\'t send your position. It will try again.';
+        shareMsg = x.ok ? '' + ST.hq + ' has your position, ' + tf.format(Date.now()) + '.' + (left ? ` ${left} more to send.` : '') : x.status === 401 ? 'The team code isn\'t right: check it with ' + ST.hq + '.' : x.status === 409 ? '' + ST.hq + ' hasn\'t turned on position sharing.' : 'Couldn\'t send your position. It will try again.';
         if (x.ok && left) setTimeout(() => field.flush(), 2000);
       } catch (e) { const n = load(FQ, []).length; shareMsg = `No signal: ${n} position${n === 1 ? '' : 's'} saved, sent when there is signal.`; }
       flushing = false;
@@ -240,12 +240,12 @@
     async row(el, bibs) {
       if (!el) return;
       const st = await push.state(), runner = !!bibs, n = runner ? bibs().length : 0;
-      const what = runner ? 'when a runner you follow reaches a checkpoint, finishes or withdraws, and for notices from Race Control' : 'for notices from Race Control';
+      const what = runner ? 'when a runner you follow reaches a checkpoint, finishes or withdraws, and for notices from ' + ST.hq + '' : 'for notices from ' + ST.hq + '';
       let h = '';
       if (st === 'unsupported' || (st !== 'on' && !(S.push && S.push.key))) h = '';
       else if (st === 'install') h = `<p class="lv-line"><b>Alerts on iPhone</b> need the app on your home screen: tap Share, then Add to Home Screen, and open the app from there. Then you can turn on alerts ${what}.</p>`;
       else if (st === 'blocked') h = '<p class="lv-line warn"><b>Alerts are blocked.</b> Allow notifications for this site in the phone\'s settings, then come back here.</p>';
-      else if (st === 'on') h = `<p class="lv-line ok"><b>Alerts are on</b> ${runner ? (n ? `for the ${n} runner${n > 1 ? 's' : ''} you follow, and` : '(follow a runner to hear about them), and') + ' for notices from Race Control' : 'for notices from Race Control'}. <button type="button" class="fd-linkbtn" data-push="off">Turn off</button></p>`;
+      else if (st === 'on') h = `<p class="lv-line ok"><b>Alerts are on</b> ${runner ? (n ? `for the ${n} runner${n > 1 ? 's' : ''} you follow, and` : '(follow a runner to hear about them), and') + ' for notices from ' + ST.hq + '' : 'for notices from ' + ST.hq + ''}. <button type="button" class="fd-linkbtn" data-push="off">Turn off</button></p>`;
       else h = `<div class="lv-row lv-alerts"><button type="button" class="btn" data-push="on">Turn on alerts</button><span class="fd-hint">A notification ${what}.</span></div><p class="fd-hint bad" data-push-err role="alert"></p>`;
       if (el.dataset.h !== h) { el.dataset.h = h; el.innerHTML = h; }
       el.hidden = !h;

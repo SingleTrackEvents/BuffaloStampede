@@ -1,0 +1,29 @@
+{
+  "name": "Buffalo Stampede Field",
+  "short_name": "Buffalo Fiel",
+  "description": "Buffalo Stampede. For Safety Officers, sweeps, aid stations and medics: where am I, the nearest way out, local weather and send my location.",
+  "id": "../../field.html?event=buffalo-2027",
+  "start_url": "../../field.html?event=buffalo-2027",
+  "scope": "../../",
+  "display": "standalone",
+  "background_color": "#1d1d1b",
+  "theme_color": "#1d1d1b",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

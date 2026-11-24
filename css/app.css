@@ -1038,3 +1038,12 @@ html.demo-on body.field .demo-list { bottom: calc(112px + env(safe-area-inset-bo
 @media (max-width: 899px) { .hq-tools { margin-left: 0; } .hq-grid { grid-template-columns: 80px 1fr; } .hq-grid [data-pick] { grid-column: 1 / -1; } }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hq-crew.sos { background: rgba(255,82,82,.15); } }
 body.on-rc .foot { display: none; }
+
+/* ---------- The casualty on the Find map: big, pulsing and labelled, so it can't be missed ---------- */
+.cas-pin { background: none; border: 0; }
+.cas-dot { position: absolute; left: 8px; top: 8px; width: 18px; height: 18px; border-radius: 50%; background: #ffd21f; border: 3px solid #111; box-sizing: border-box; box-shadow: 0 0 0 2px #fff; }
+.cas-ring { position: absolute; left: 0; top: 0; width: 34px; height: 34px; border-radius: 50%; border: 3px solid #e0262b; box-sizing: border-box; animation: cas-pulse 1.6s ease-out infinite; }
+@keyframes cas-pulse { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cas-ring { animation: none; transform: scale(1.2); opacity: .8; } }
+.leaflet-tooltip.cas-tip { background: #111; color: #fff; border: 2px solid #ffd21f; font-weight: 700; font-size: 13px; padding: 3px 8px; border-radius: 6px; box-shadow: 0 1px 6px rgba(0,0,0,.5); }
+.leaflet-tooltip-top.cas-tip::before { border-top-color: #ffd21f; }

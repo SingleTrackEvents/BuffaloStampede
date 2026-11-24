@@ -7,6 +7,9 @@
 //                          number, so the service worker saves it with the rest of the build.
 //   ST.path('x')           the address of a file in the event pack (tiles, the medical plan).
 //   ST.has('medical')      whether this event switches a module on.
+//   ST.app('Field')        this event's name for one of the apps ("Buffalo Stampede Field").
+//   ST.hq                  the event's own name for its control room ("Event HQ", "Race Control", "Race HQ").
+// Nothing here names any event but the one picked: each event keeps its own name, logo, icon and install file.
 (function () {
   const EVENTS = window.ST_EVENTS || [], KEY = 'stEvent', DAY = 864e5;
   const me = document.currentScript, build = me ? new URL(me.src, location.href).searchParams.get('v') || '' : '';
@@ -25,15 +28,25 @@
     path: f => base + f,
     load: f => document.write('<script src="' + base + f + (build ? '?v=' + build : '') + '"><\/script>'),
     has: m => !ev.modules || ev.modules.includes(m),
+    app: k => ev.name + ' ' + k,
+    hq: ev.hq || 'Event HQ',
     // Another event: this page again with ?event=, which the phone then remembers.
     pick: id => { const u = new URL(location.href); u.searchParams.set('event', id); location.href = u.href; }
   };
-  // The event's own logo and name in the header, and its name in the page title.
+  // The page's install file and home screen icon: the event's own (events/<id>/), so a phone that adds this page to
+  // its home screen gets this event's name and icon, and opens on this event.
+  const kind = /field\.html$/.test(location.pathname) ? 'field' : /runner\.html$/.test(location.pathname) ? 'runner' : 'staff';
+  const link = (rel, href, extra) => { const l = document.querySelector('link[rel="' + rel + '"]') || document.head.appendChild(Object.assign(document.createElement('link'), { rel })); l.href = href; Object.assign(l, extra || {}); };
+  link('manifest', base + 'manifest-' + kind + '.webmanifest');
+  link('apple-touch-icon', base + 'icon-180.png');
+  link('icon', base + 'icon-48.png', { type: 'image/png' });
+  // The event's own logo and name in the header and the page title (the pages themselves only say "SingleTrack").
+  const NAMES = { staff: 'Safety', field: 'Field', runner: 'Runner' };
   document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('img.brand-logo').forEach(img => {
-      if (ev.logo) { img.src = base + ev.logo; img.width = ev.logoW || img.width; }
-      img.alt = ev.series === ev.name ? ev.name : ev.series + ' ' + ev.name;
-    });
-    document.title = document.title.replace(/^(Running Wild|GPT100|SingleTrack)\b/, ev.short || ev.name);
+    document.querySelectorAll('img.brand-logo').forEach(img => { if (ev.logo) { img.src = base + ev.logo; img.width = ev.logoW || img.width; } img.alt = ev.name; });
+    document.querySelectorAll('img.gate-logo').forEach(img => { if (ev.logoLight) img.src = base + ev.logoLight; img.alt = ev.name; });
+    document.querySelectorAll('a.brand').forEach(a => a.setAttribute('aria-label', ev.name + ' ' + NAMES[kind]));
+    document.querySelectorAll('[data-st-name]').forEach(el => { el.textContent = ev.name + ' ' + el.getAttribute('data-st-name'); });
+    document.title = document.title.replace(/^SingleTrack\b/, ev.name);
   });
 })();

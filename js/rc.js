@@ -97,7 +97,7 @@
     try {
       await flush();
       const j = await api('/rc/state?since=' + since);
-      if (!Array.isArray(j.incidents)) throw new Error('Race HQ isn\'t set up on the Worker yet (paste the latest Worker code into Cloudflare)');
+      if (!Array.isArray(j.incidents)) throw new Error('' + ST.hq + ' isn\'t set up on the Worker yet (paste the latest Worker code into Cloudflare)');
       j.incidents.forEach(i => { const cur = incidents.get(i.id); if (!cur || (cur.version || 0) <= i.version) incidents.set(i.id, i); });
       if (j.log.length) { const ids = new Set(log.map(l => l.id)); log = j.log.filter(l => !ids.has(l.id)).concat(log).sort((a, b) => b.id - a.id).slice(0, 500); }
       if (!readQ().length) log = log.filter(l => !l.pending);
@@ -206,7 +206,7 @@
       </div>
     </div>`;
     $('rcWho').addEventListener('change', e => { try { localStorage.setItem(LSN, e.target.value.trim()); } catch (x) { } });
-    $('rcLock').addEventListener('click', () => { if (confirm('Lock Race HQ on this device? You\'ll need the password again.') && window.MedPlan) window.MedPlan.lock(); });
+    $('rcLock').addEventListener('click', () => { if (confirm('Lock ' + ST.hq + ' on this device? You\'ll need the password again.') && window.MedPlan) window.MedPlan.lock(); });
     $('hqSetBtn').addEventListener('click', () => { settingsOpen = !settingsOpen; $('hqSettings').hidden = !settingsOpen; $('hqSetBtn').setAttribute('aria-expanded', settingsOpen); liveKey = ''; renderSettings(); });
     $('rcBody').querySelectorAll('.hq-qb').forEach(b => b.addEventListener('click', () => openForm({ kind: b.dataset.kind })));
     $('hqSorted').addEventListener('toggle', () => { sortedOpen = $('hqSorted').open; });
@@ -265,11 +265,11 @@
   // ---------- rendering ----------
   function render() {
     if (!shown) return;
-    if (!BASE) { $('rcBody').innerHTML = '<div class="rc-msg"><h2>Race HQ</h2><p>Race HQ needs the SingleTrack Worker. See tools/SINGLETRACK_WORKER.md.</p></div>'; built = false; return; }
+    if (!BASE) { $('rcBody').innerHTML = '<div class="rc-msg"><h2>' + ST.hq + '</h2><p>' + ST.hq + ' needs the SingleTrack Worker. See tools/SINGLETRACK_WORKER.md.</p></div>'; built = false; return; }
     if (!unlocked()) {
       built = false; if (map) { map.remove(); map = null; layer = null; }
       // The staff password, checked with the Worker (js/medplan.js). The device remembers it until Lock.
-      $('rcBody').innerHTML = `<div class="rc-msg"><h2>Race HQ</h2><p>Enter the staff password from the Race Director. This device remembers it until you lock it.</p>
+      $('rcBody').innerHTML = `<div class="rc-msg"><h2>${ST.hq}</h2><p>Enter the staff password from the Race Director. This device remembers it until you lock it.</p>
         <form id="rcUnlock" class="search-row" autocomplete="off"><input id="rcPw" type="password" placeholder="Password" autocomplete="current-password"><button class="btn primary" type="submit">Unlock</button></form>
         <p class="msg" id="rcPwMsg" role="status"></p></div>`;
       $('rcUnlock').addEventListener('submit', async e => {
@@ -282,7 +282,7 @@
     }
     if (lastErr && /set up/.test(lastErr) && !incidents.size) {
       built = false; if (map) { map.remove(); map = null; layer = null; }
-      $('rcBody').innerHTML = `<div class="rc-msg"><h2>Race HQ</h2><p>${esc(lastErr)}.</p><p>Setup steps are in tools/SINGLETRACK_WORKER.md.</p></div>`;
+      $('rcBody').innerHTML = `<div class="rc-msg"><h2>${ST.hq}</h2><p>${esc(lastErr)}.</p><p>Setup steps are in tools/SINGLETRACK_WORKER.md.</p></div>`;
       return;
     }
     if (!built) build();
@@ -591,7 +591,7 @@
     const blob = new Blob([rows.map(r => r.map(q).join(',')).join('\r\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'RunningWild-HQ-log-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.csv';
+    a.download = ST.event.id + '-HQ-log-' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.csv';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }

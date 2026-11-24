@@ -24,9 +24,14 @@
   const ago = ms => ms < 90e3 ? 'just now' : ms < 3600e3 ? Math.round(ms / 60e3) + ' min ago' : ms < 48 * 3600e3 ? (ms / 3600e3).toFixed(1) + ' h ago' : Math.round(ms / 864e5) + ' days ago';
 
   // The timing feed's race (js/timing.js keyOf) to the stage in data/races.js with its points, km and cut-offs.
-  const STAGE_OF = { miler: 'miler', '50k': 's1', s1: 's1', s2: 's2', s3: 's3', s4: 's4', '33k': 's4', '14k': '14k', '6k': '6k' };
-  const ORDER = ['miler', '50k', 's1', 's2', 's3', 's4', '33k', '14k', '6k'];
-  const LABEL = { miler: 'GPT100 Miler', '50k': 'GPT50k', s1: 'Stage race, Stage 1', s2: 'Stage race, Stage 2', s3: 'Stage race, Stage 3', s4: 'Stage race, Stage 4', '33k': 'GPT33k', '14k': 'GPT14k', '6k': 'GPT6k' };
+  // The GPT100's own races and the tracking feed's names for them; any other event's come from its races.js (each race
+  // id is its key, on its first stage).
+  const GPT = !!(R.stages.miler && R.stages.s1);
+  const STAGE_OF = GPT ? { miler: 'miler', '50k': 's1', s1: 's1', s2: 's2', s3: 's3', s4: 's4', '33k': 's4', '14k': '14k', '6k': '6k' }
+    : Object.fromEntries(R.races.map(r => [r.id, r.stages[0]]));
+  const ORDER = GPT ? ['miler', '50k', 's1', 's2', 's3', 's4', '33k', '14k', '6k'] : R.races.map(r => r.id);
+  const LABEL = GPT ? { miler: 'GPT100 Miler', '50k': 'GPT50k', s1: 'Stage race, Stage 1', s2: 'Stage race, Stage 2', s3: 'Stage race, Stage 3', s4: 'Stage race, Stage 4', '33k': 'GPT33k', '14k': 'GPT14k', '6k': 'GPT6k' }
+    : Object.fromEntries(R.races.map(r => [r.id, r.label]));
   function stageFor(key) {
     const id = STAGE_OF[key], race = id && R.races.find(r => r.stages.includes(id));
     return race ? prepare(R.stages[id], race.course) : null;
@@ -352,7 +357,7 @@
   function share(bib, b) {
     const o = live() ? info(bib) : null, url = location.origin + location.pathname + '#bib=' + encodeURIComponent(bib);
     const text = `Follow ${o && o.name ? o.name : 'bib ' + bib}${o && o.label ? ' in the ' + o.label : ''} live`;
-    if (navigator.share) navigator.share({ title: 'GPT100 live tracking', text, url }).catch(() => { });
+    if (navigator.share) navigator.share({ title: ST.event.name + ' live tracking', text, url }).catch(() => { });
     else if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => { b.textContent = 'Link copied'; setTimeout(() => { b.textContent = 'Share'; }, 2500); }, () => prompt('Copy this link', url));
     else prompt('Copy this link', url);
   }
@@ -362,7 +367,7 @@
   // in, a small dot on the whole course. Tap one for their name, race and km, and to follow them. The Everyone button
   // turns them off, the Races button opens the key, and the key hides or shows a race; all remembered on the phone.
   // Only where runners are: the staff apps' flags (not moving, late) aren't shown here.
-  const GROUPS = [
+  const GROUPS = !GPT ? R.races.map((r, i) => ({ id: r.id, label: r.short || r.label, color: ['#1666c9', '#7b3fb0', '#128c4a', '#c2185b', '#b87700', '#00838f', '#5d4037', '#455a64', '#e65100'][i % 9], keys: [r.id] })) : [
     { id: 'miler', label: 'Miler', color: '#1666c9', keys: ['miler'] },
     { id: '50k', label: '50k', color: '#7b3fb0', keys: ['50k'] },
     { id: 'stage', label: 'Stage race', color: '#128c4a', keys: ['s1', 's2', 's3', 's4'] },
