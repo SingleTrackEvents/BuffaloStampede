@@ -149,7 +149,7 @@
   const FK = 'stFieldShare';
   let lastShare = 0, shareMsg = '';
   const field = {
-    cfg: () => Object.assign({ on: false, name: '', code: '', id: '' }, load(FK, {})),
+    cfg: () => Object.assign({ on: false, name: '', code: '', id: '', unit: 'foot' }, load(FK, {})),
     set(p) { const c = Object.assign(field.cfg(), p); if (!c.id) c.id = rid(); save(FK, c); tell(); return c; },
     status: () => shareMsg,
     available: () => !!(base() && S.field && S.field.on),
@@ -174,7 +174,7 @@
       flushing = true;
       try {
         const batch = q.slice(0, 120);
-        const x = await call('/field/pos', { code: c.code, id: c.id, name: c.name, src: window.RW_APK ? 'apk' : 'web', fixes: batch }, 20000);
+        const x = await call('/field/pos', { code: c.code, id: c.id, name: c.name, unit: c.unit || 'foot', src: window.RW_APK ? 'apk' : 'web', fixes: batch }, 20000);
         if (x.ok || x.status === 400) save(FQ, load(FQ, []).slice(batch.length));
         const left = load(FQ, []).length;
         shareMsg = x.ok ? '' + ST.hq + ' has your position, ' + tf.format(Date.now()) + '.' + (left ? ` ${left} more to send.` : '') : x.status === 401 ? 'The team code isn\'t right: check it with ' + ST.hq + '.' : x.status === 409 ? '' + ST.hq + ' hasn\'t turned on position sharing.' : 'Couldn\'t send your position. It will try again.';

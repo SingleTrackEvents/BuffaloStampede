@@ -1081,3 +1081,10 @@ body.on-rc .foot { display: none; }
 .care-hq-list small { display: block; opacity: .75; }
 .care-hq-concern { margin: 0 0 14px; padding: 10px 12px; border: 2px solid var(--gold, #f2a531); border-radius: 10px; }
 .care-hq-concern h3 { margin: 0 0 4px; }
+
+/* ---------- Transport on the Control board (js/rc.js) ---------- */
+.hq-tr { margin: 6px 0; font-size: 14px; }
+.hq-tr.late { color: var(--red, #c0392b); font-weight: 600; }
+.hq-tr .btn { margin-left: 6px; }
+.hq-choose { margin: 6px 0; padding: 8px; border: 2px dashed var(--line); border-radius: 8px; }
+.hq-choose .btn { margin: 3px 4px 3px 0; }

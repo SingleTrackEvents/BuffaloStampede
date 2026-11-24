@@ -222,3 +222,14 @@ body.field .fd-rp .btn.small { min-height: 44px; }
 .care-flag { margin-top: 10px; }
 .care-flag summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
 .care-flag input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px; border: 2px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); margin-bottom: 6px; }
+
+/* ---------- Transport jobs on a vehicle's phone (js/jobs.js) ---------- */
+.fd-job { position: sticky; top: 0; z-index: 1500; padding: 8px 12px; background: #b3261e; color: #fff; }
+.fd-job-card { max-width: 640px; margin: 0 auto 6px; }
+.fd-job-k { margin: 0; font: 400 20px/1.1 var(--head, sans-serif); letter-spacing: .5px; text-transform: uppercase; }
+.fd-job-w { margin: 4px 0; font-size: 17px; }
+.fd-job-t { margin: 2px 0 8px; font-size: 13px; opacity: .9; }
+.fd-job-b { display: flex; gap: 8px; flex-wrap: wrap; }
+.fd-job .btn { border-color: #fff; background: transparent; color: #fff; }
+.fd-job .btn.primary { background: #fff; color: #b3261e; }
+.fd-job-err { margin: 4px 0 0; font-size: 13px; }
