@@ -1079,3 +1079,5 @@ body.on-rc .foot { display: none; }
 .care-hq-list li { padding: 8px 0; border-top: 1px solid var(--line); }
 .care-hq-list li.wd b { color: var(--red, #c0392b); }
 .care-hq-list small { display: block; opacity: .75; }
+.care-hq-concern { margin: 0 0 14px; padding: 10px 12px; border: 2px solid var(--gold, #f2a531); border-radius: 10px; }
+.care-hq-concern h3 { margin: 0 0 4px; }

@@ -138,4 +138,11 @@ Still open: asking Race Day Medical, in the 2027 agreement, to log in the app an
 - **A withdrawal, once.** It goes into HQ's log ("Bib 123 withdrawn at Eurobin Creek at 17:07 (seen by medical)"), and everyone following that runner gets an alert with where to collect them.
 - **Checked.** A browser test runs HQ, a medic and an Aid Station Manager end to end against the Worker, and 13 Worker checks cover the codes, the notes and retries.
 
-Next, in order: runners of concern (3.2), transport requests with the nearest vehicle going (3.3), cover warnings (3.4), then the Conditions board and decisions (section 4).
+**Runners of concern** (section 3.2), live for Buffalo:
+
+- **Watch for.** On the Log tab, anyone signed in flags a bib with what the next post should look for. Every post sees the runner under **Watch for**, taps **Seen here** as they come through, and the Medical Team (or whoever flagged them) taps **All clear**.
+- **Closing.** A runner who withdraws afterwards comes off the list on their own.
+- **HQ.** The Medical tab lists the open runners of concern, longest unseen first, with where and when each was last seen. A runner unseen for over an hour is marked (STE-SOP-104's 60 minute threshold). The flag and each sighting go into HQ's log.
+- **Team code limits.** It can flag, see and withdraw, but can't log medical care (the Worker refuses it).
+
+Next, in order: transport requests with the nearest vehicle going (3.3), cover warnings (3.4), then the Conditions board and decisions (section 4).

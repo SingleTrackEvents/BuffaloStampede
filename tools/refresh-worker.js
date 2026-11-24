@@ -590,7 +590,9 @@ const LIVE_SCHEMA = [
   'CREATE TABLE IF NOT EXISTS push_msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, bib TEXT NOT NULL, t INTEGER NOT NULL, title TEXT, text TEXT NOT NULL, url TEXT)',
   'CREATE INDEX IF NOT EXISTS push_msgs_bib ON push_msgs (bib, id)',
   // The medical log (docs/MEDICAL_AND_RISK.md): every presentation, minor care count and withdrawal, logged once.
-  // kind: med (seen by medical), minor (+1 band-aid or ice pack), wd (withdrawal with no medical presentation).
+  // kind: med (seen by medical), minor (+1 band-aid or ice pack), wd (withdrawal with no medical presentation),
+  // concern (a runner of concern flagged, with the reason), seen (that runner seen at a post: type holds the concern's
+  // id) and clear (the concern closed: type holds its id).
   // notes: clinical detail, kept only from a phone with the medical code, and only ever returned to one.
   'CREATE TABLE IF NOT EXISTS care (id TEXT PRIMARY KEY, kind TEXT NOT NULL, bib TEXT, name TEXT, race TEXT, post TEXT, type TEXT, outcome TEXT, reason TEXT, notes TEXT, who TEXT, role TEXT, t INTEGER NOT NULL, updated INTEGER NOT NULL, deleted INTEGER)',
   'CREATE INDEX IF NOT EXISTS care_updated ON care (updated)'
@@ -729,17 +731,20 @@ async function liveApi(req, env, url, c, ctx) {
     }
     if (!(await allow(db, 'care:' + ip, 300, 60 * 60e3))) return json({ error: 'Too many entries from this phone. Wait a while.' }, 429);
     const list = (Array.isArray(b.entries) ? b.entries : [b.entry]).slice(0, 50).filter(e => e && typeof e === 'object');
-    const KINDS = ['med', 'minor', 'wd'], OUT = ['continued', 'withdrawn', 'transported', ''];
+    // The team code logs withdrawals and runners of concern; only the medical code logs care.
+    const KINDS = role === 'medical' ? ['med', 'minor', 'wd', 'concern', 'seen', 'clear'] : ['wd', 'concern', 'seen', 'clear'], OUT = ['continued', 'withdrawn', 'transported', ''];
     const ops = [], saved = [];
     for (const e of list) {
       const id = txt(e.id, 40), kind = KINDS.includes(e.kind) ? e.kind : null, outcome = OUT.includes(e.outcome) ? e.outcome : '';
+      // (seen and clear name the concern they belong to, by its id.)
+      if ((kind === 'seen' || kind === 'clear') && !/^[A-Za-z0-9-]{8,40}$/.test(txt(e.type, 40))) continue;
       if (!/^[A-Za-z0-9-]{8,40}$/.test(id) || !kind) continue;
       const bib = txt(e.bib, 8).replace(/[^0-9A-Za-z]/g, ''), post = txt(e.post, 60), t = Math.min(now, num(e.t, 0, 1e14) || now);
       const old = await db.prepare('SELECT id, outcome, deleted FROM care WHERE id = ?1').bind(id).first();
       const del = e.deleted === true ? now : null;
       ops.push(db.prepare('INSERT INTO care (id, kind, bib, name, race, post, type, outcome, reason, notes, who, role, t, updated, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15) ' +
         'ON CONFLICT(id) DO UPDATE SET bib = ?3, name = ?4, race = ?5, post = ?6, type = ?7, outcome = ?8, reason = ?9, notes = COALESCE(?10, care.notes), who = ?11, updated = ?14, deleted = ?15')
-        .bind(id, kind, bib || null, txt(e.name, 40) || null, txt(e.race, 20) || null, post || null, txt(e.type, 20) || null, outcome || (kind === 'wd' ? 'withdrawn' : null),
+        .bind(id, kind, bib || null, txt(e.name, 40) || null, txt(e.race, 20) || null, post || null, txt(e.type, 40) || null, outcome || (kind === 'wd' ? 'withdrawn' : null),
           txt(e.reason, 200) || null, role === 'medical' ? (txt(e.notes, 1500) || null) : null, txt(e.who, 40) || null, role, t, now, del));
       // A withdrawal, the first time it's heard: into HQ's log, and an alert to every phone following that runner.
       const wd = !del && bib && (kind === 'wd' || outcome === 'withdrawn' || outcome === 'transported');
@@ -753,6 +758,14 @@ async function liveApi(req, env, url, c, ctx) {
           .bind(bib, now, evName(env) + ': bib ' + bib, outcome === 'transported'
             ? 'Bib ' + bib + ' has been taken to hospital from' + (post ? ' ' + post : ' the course') + ' at ' + tm + '. Call race medical for details.'
             : 'Bib ' + bib + ' has withdrawn' + where + ' at ' + tm + '. ' + (post ? 'Collect them from ' + post + ', or ask ' + hqName(env) + ' how they\'re getting back.' : 'Ask ' + hqName(env) + ' where to collect them.'), ''));
+      }
+      // A runner of concern, the first time it's heard: into HQ's log, and each sighting and all clear after it.
+      if (!del && !old && bib && (kind === 'concern' || kind === 'seen' || kind === 'clear')) {
+        const tm = new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(t));
+        const text = kind === 'concern' ? 'Runner of concern: bib ' + bib + (post ? ' at ' + post : '') + ' at ' + tm + (e.reason ? ' (' + txt(e.reason, 120) + ')' : '')
+          : kind === 'seen' ? 'Runner of concern: bib ' + bib + ' seen' + (post ? ' at ' + post : '') + ' at ' + tm
+          : 'Runner of concern: bib ' + bib + ', all clear at ' + tm;
+        ops.push(db.prepare('INSERT INTO log (t, incident, kind, text, who, updated) VALUES (?1, NULL, ?2, ?3, ?4, ?1)').bind(now, 'concern', text, txt(e.who, 40) || role));
       }
       saved.push(id);
     }

@@ -38,7 +38,24 @@
   let me = load('me', { code: '', who: '', role: '' }), post = load('post', ''), q = load('q', []), list = [], busy = false, msg = '', flash = '', flashT = 0;
   // A confirmation that stays up for a few seconds, through the list refreshing.
   const say = t => { flash = t; flashT = Date.now(); const m = $('careMsg'); if (m) m.textContent = t; };
-  const form = { kind: 'med', bib: '', type: '', outcome: '', reason: '', notes: '' };
+  const form = { kind: 'med', bib: '', type: '', outcome: '', reason: '', notes: '' }, flag = { bib: '', reason: '' };
+
+  // ---------- runners of concern (docs/MEDICAL_AND_RISK.md, 3.2) ----------
+  // Anyone flags a runner with a reason; every post sees them under Watch for; whoever sees them taps Seen here; the
+  // Medical Team (or whoever flagged them) taps All clear. Entries still waiting to send count straight away.
+  const all = () => { const m = new Map(list.map(x => [x.id, x])); q.forEach(x => m.set(x.id, Object.assign({}, m.get(x.id), x))); return [...m.values()].filter(x => !x.deleted); };
+  function concerns() {
+    const A = all(), out = [];
+    A.filter(x => x.kind === 'concern').forEach(c => {
+      if (A.some(x => x.kind === 'clear' && x.type === c.id)) return;
+      // (A runner who has since withdrawn is off the list: their withdrawal is the outcome.)
+      if (A.some(x => x.bib === c.bib && x.t >= c.t && (x.kind === 'wd' || x.outcome === 'withdrawn' || x.outcome === 'transported'))) return;
+      const seen = A.filter(x => x.kind === 'seen' && x.type === c.id).sort((a, b) => b.t - a.t);
+      out.push(Object.assign({ seen }, c));
+    });
+    return out.sort((a, b) => (a.seen[0] || a).t - (b.seen[0] || b).t);
+  }
+  const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min ago' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min ago'; };
 
   async function call(path, body) {
     const r = await fetch(base() + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), cache: 'no-store' });
@@ -91,10 +108,23 @@
     const med = me.role === 'medical', P = post, mine = list.filter(x => !x.deleted && (!P || x.post === P));
     const unsent = q.length ? `<p class="care-unsent">${q.length} waiting to send. ${esc(msg)}</p>` : msg ? `<p class="care-unsent">${esc(msg)}</p>` : '';
     const minors = mine.filter(x => x.kind === 'minor').length;
-    const rows = mine.filter(x => x.kind !== 'minor').slice(0, 30).map(x => `<li><b>${esc(x.bib ? 'Bib ' + x.bib : 'No bib')}</b> ${x.kind === 'wd' ? 'Withdrawn' + (x.reason ? ': ' + esc(x.reason) : '') : esc(typeName(x.type)) + ' · ' + esc(outName(x.outcome))}
+    const rows = mine.filter(x => x.kind === 'med' || x.kind === 'wd').slice(0, 30).map(x => `<li><b>${esc(x.bib ? 'Bib ' + x.bib : 'No bib')}</b> ${x.kind === 'wd' ? 'Withdrawn' + (x.reason ? ': ' + esc(x.reason) : '') : esc(typeName(x.type)) + ' · ' + esc(outName(x.outcome))}
       <small>${esc(tf.format(new Date(x.t)))}${x.post && !P ? ' · ' + esc(x.post) : ''}${x.who ? ' · ' + esc(x.who) : ''}</small>${med && x.notes ? `<small class="care-notes">${esc(x.notes)}</small>` : ''}
       ${med || x.who === me.who ? `<button type="button" class="btn small care-del" data-id="${esc(x.id)}">Remove</button>` : ''}</li>`).join('');
-    box.innerHTML = `<section class="fd-card"><h2>${med ? 'Medical log' : 'Log a withdrawal'}</h2>
+    const C = concerns();
+    const watch = `<section class="fd-card care-watch"><h2>Watch for${C.length ? ' (' + C.length + ')' : ''}</h2>
+      ${C.length ? `<ul class="care-list">${C.map(c => { const last = c.seen[0], here = P && c.seen.find(x => x.post === P);
+        return `<li class="${!last && Date.now() - c.t > 3600e3 ? 'care-late' : ''}"><b>Bib ${esc(c.bib)}</b> ${esc(c.reason || '')}
+        <small>Flagged at ${esc(c.post || 'on course')}, ${esc(tf.format(new Date(c.t)))}${c.who ? ' by ' + esc(c.who) : ''}.</small>
+        <small>${last ? 'Last seen at ' + esc(last.post || 'on course') + ', ' + esc(tf.format(new Date(last.t))) + ' (' + ago(last.t) + ').' : 'Not seen since (' + ago(c.t) + ').'}</small>
+        ${here ? `<small>Seen here at ${esc(tf.format(new Date(here.t)))}.</small>` : `<button type="button" class="btn small care-seen" data-id="${esc(c.id)}">Seen here</button>`}
+        ${med || c.who === me.who ? `<button type="button" class="btn small care-clear" data-id="${esc(c.id)}">All clear</button>` : ''}</li>`; }).join('')}</ul>`
+        : '<p class="fd-hint">No runners of concern. Flag one below and every post will watch for them.</p>'}
+      <details class="care-flag"${flag.bib ? ' open' : ''}><summary>Flag a runner of concern</summary>
+        <label class="fd-label" for="careFBib">Bib</label><input id="careFBib" type="text" inputmode="numeric" maxlength="8" value="${esc(flag.bib)}">
+        <label class="fd-label" for="careFWhy">Why? (what the next post should look for)</label><input id="careFWhy" type="text" maxlength="120" value="${esc(flag.reason)}" placeholder="e.g. shaky and cold, wouldn't eat">
+        <button class="btn primary" id="careFlag" type="button">Flag runner</button></details></section>`;
+    box.innerHTML = watch + `<section class="fd-card"><h2>${med ? 'Medical log' : 'Log a withdrawal'}</h2>
       <p class="fd-hint">Signed in as <b>${esc(me.who)}</b> (${med ? 'Medical Team' : 'team code'}). <button type="button" class="linkbtn" id="careOut">Sign out</button></p>
       <label class="fd-label" for="carePost">Post</label><select id="carePost"><option value="">Choose your post</option>${POSTS.map(p => `<option${p.name === P ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
       ${navigator.geolocation ? '<button type="button" class="btn small" id="careHere">Nearest to me</button>' : ''}
@@ -132,6 +162,23 @@
     });
     if ($('careMinor')) $('careMinor').addEventListener('click', () => { if (!post) { say('Choose your post first.'); return; } add({ kind: 'minor' }); render(); say('+1 minor care saved.'); });
     $('careRefresh').addEventListener('click', () => { refresh(); flush(); });
+    $('careFBib').addEventListener('input', e => { flag.bib = e.target.value.replace(/[^0-9A-Za-z]/g, ''); });
+    $('careFWhy').addEventListener('input', e => { flag.reason = e.target.value; });
+    $('careFlag').addEventListener('click', () => {
+      if (!flag.bib) { say('The bib, please.'); return; }
+      if (!flag.reason.trim()) { say('Say why, so the next post knows what to look for.'); return; }
+      add({ kind: 'concern', bib: flag.bib, reason: flag.reason.trim(), post: post || 'On course' });
+      Object.assign(flag, { bib: '', reason: '' }); render(); say('Flagged. Every post will watch for them.');
+    });
+    box.querySelectorAll('.care-seen').forEach(b => b.addEventListener('click', () => {
+      if (!post) { say('Choose your post first, so they know where.'); return; }
+      const c = concerns().find(x => x.id === b.dataset.id); if (!c) return;
+      add({ kind: 'seen', bib: c.bib, type: c.id }); render(); say('Bib ' + c.bib + ' seen here.');
+    }));
+    box.querySelectorAll('.care-clear').forEach(b => b.addEventListener('click', () => {
+      const c = concerns().find(x => x.id === b.dataset.id); if (!c || !confirm('Bib ' + c.bib + ': all clear?')) return;
+      add({ kind: 'clear', bib: c.bib, type: c.id }); render(); say('Bib ' + c.bib + ': all clear.');
+    }));
     box.querySelectorAll('.care-del').forEach(b => b.addEventListener('click', () => {
       const x = list.find(y => y.id === b.dataset.id); if (!x || !confirm('Remove this entry?')) return;
       q.push(Object.assign({}, x, { deleted: true })); save('q', q); x.deleted = 1; render(); flush();

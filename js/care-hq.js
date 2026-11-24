@@ -28,6 +28,15 @@
     render();
   }
   const isWd = x => x.kind === 'wd' || x.outcome === 'withdrawn' || x.outcome === 'transported';
+  // Runners of concern still open: flagged, not cleared, not withdrawn since. Longest unseen first.
+  function concerns() {
+    return rows.filter(c => c.kind === 'concern').map(c => {
+      if (rows.some(x => x.kind === 'clear' && x.type === c.id)) return null;
+      if (rows.some(x => x.bib === c.bib && x.t >= c.t && isWd(x))) return null;
+      return Object.assign({ seen: rows.filter(x => x.kind === 'seen' && x.type === c.id).sort((a, b) => b.t - a.t) }, c);
+    }).filter(Boolean).sort((a, b) => (a.seen[0] || a).t - (b.seen[0] || b).t);
+  }
+  const ago = t => { const m = Math.round((Date.now() - t) / 60000); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + (m % 60) + ' min'; };
   function render() {
     if (!shown) return;
     if (!BASE) { box.innerHTML = `<div class="rc-msg"><h2>Medical</h2><p>The medical log needs the SingleTrack Worker (tools/SINGLETRACK_WORKER.md).</p></div>`; return; }
@@ -36,11 +45,16 @@
     const posts = [...new Set(rows.map(x => x.post || 'Not stated'))].sort();
     const by = posts.map(p => { const r = rows.filter(x => (x.post || 'Not stated') === p); return { p, seen: r.filter(x => x.kind === 'med').length, minor: r.filter(x => x.kind === 'minor').length, wd: r.filter(isWd).length, hosp: r.filter(x => x.outcome === 'transported').length,
       last: Math.max(...r.map(x => x.t)) }; });
-    const list = rows.filter(x => x.kind !== 'minor' && (!filter || (x.post || 'Not stated') === filter)).slice(0, 200);
+    const C = concerns();
+    const list = rows.filter(x => (x.kind === 'med' || x.kind === 'wd') && (!filter || (x.post || 'Not stated') === filter)).slice(0, 200);
     box.innerHTML = `<div class="care-hq">
       <div class="care-hq-head"><h2>Medical</h2><span class="care-hq-err">${esc(err)}</span>
         <button class="btn small" id="chqCsv" type="button">Download report</button><button class="btn small" id="chqRef" type="button">Refresh</button></div>
       <div class="care-hq-tiles"><div><b>${seen.length}</b>seen by medical</div><div><b>${minor.length}</b>minor care</div><div><b>${wd.length}</b>withdrawn</div><div><b>${hosp.length}</b>to hospital</div></div>
+      <section class="care-hq-concern"><h3>Runners of concern${C.length ? ' (' + C.length + ')' : ''}</h3>
+        ${C.length ? `<ul class="care-hq-list">${C.map(c => { const last = c.seen[0], since = (last || c).t, late = Date.now() - since > 3600e3;
+          return `<li class="${late ? 'wd' : ''}"><b>Bib ${esc(c.bib)}</b> ${esc(c.reason || '')}<small>Flagged at ${esc(c.post || 'on course')}, ${esc(tf.format(new Date(c.t)))}${c.who ? ' by ' + esc(c.who) : ''}. ${last ? 'Last seen at ' + esc(last.post || 'on course') + ', ' + esc(tf.format(new Date(last.t))) + '.' : 'Not seen since.'} ${late ? '<b>Unseen for ' + ago(since) + '.</b>' : ago(since) + ' ago.'}</small></li>`; }).join('')}</ul>`
+          : '<p class="muted">None. Posts flag them from the field app\'s Log tab, and every post watches for them.</p>'}</section>
       <div class="care-hq-cols">
         <section><h3>By post</h3>${by.length ? `<table class="care-hq-t"><thead><tr><th>Post</th><th>Seen</th><th>Minor</th><th>Withdrawn</th><th>Hospital</th><th>Last</th></tr></thead><tbody>${by.map(b => `<tr data-p="${esc(b.p)}" class="${b.p === filter ? 'on' : ''}"><td>${esc(b.p)}</td><td>${b.seen}</td><td>${b.minor}</td><td>${b.wd}</td><td>${b.hosp}</td><td>${esc(tf.format(new Date(b.last)))}</td></tr>`).join('')}</tbody></table><p class="muted">Tap a post to see only its entries.</p>` : '<p class="muted">Nothing logged yet.</p>'}
           <h3>Medical code</h3><p class="muted">The Medical Team signs in to the field app's Log tab with this. Safety Officers and Aid Station Managers use the team code (Control, Settings) and can log withdrawals only.</p>
