@@ -351,7 +351,7 @@
     if (name === 'help') {
       const id = 'h-' + txt(b.id, 36);
       if (L.help[id]) return json({ ok: true, num: L.help[id].num, again: true });
-      if (!open) return json({ closed: true, error: 'Race Control isn\'t taking messages from the app right now' }, 409);
+      if (!open) return json({ closed: true, error: '' + ST.hq + ' isn\'t taking messages from the app right now' }, 409);
       const app = b.app === 'field' ? 'field' : 'runner';
       L.n++;
       L.help[id] = { num: 30 + L.n, created: now, updated: now, status: 'open', severity: b.urgent === true ? 'urgent' : 'priority', source: app, needsAck: true, times: { call: now },
@@ -368,7 +368,7 @@
       return json({ ok: true });
     }
     if (name === 'field/check' || name === 'field/pos') {
-      if (!L.field_code) return json({ off: true, error: 'Race Control hasn\'t turned on position sharing' }, 409);
+      if (!L.field_code) return json({ off: true, error: '' + ST.hq + ' hasn\'t turned on position sharing' }, 409);
       if (txt(b.code, 20).toLowerCase() !== L.field_code.toLowerCase()) return json({ error: 'That team code isn\'t right' }, 401);
       if (name === 'field/check') return json({ ok: true });
       if (typeof b.lat !== 'number' || typeof b.lon !== 'number' || !b.id || !b.name) return json({ error: 'Bad request' }, 400);

@@ -3,11 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Running Wild Admin</title>
-<link rel="icon" href="icons/icon-48.png" type="image/png">
-<link rel="stylesheet" href="lib/leaflet.css?v=14">
-<link rel="stylesheet" href="lib/fonts.css?v=14">
-<script src="lib/leaflet.js?v=14"></script>
+<title>SingleTrack Admin</title>
+<link rel="stylesheet" href="lib/leaflet.css?v=16">
+<link rel="stylesheet" href="lib/fonts.css?v=16">
+<script src="lib/leaflet.js?v=16"></script>
 <style>
   :root{ --ink:#1c1c1c; --paper:#f7f5f0; --line:#dcd7cc; --hg:#c0392b; --dk:#1f6f4a; --accent:#b5651d; --muted:#6b6459; --walk:#1666c9; --jc:#1b6ca8;}
   *{box-sizing:border-box}
@@ -57,8 +56,8 @@
 </head>
 <body>
 <div id="gate"><form id="gateForm" autocomplete="off">
-  <img src="icons/logo.png" alt="SingleTrack Running Wild" class="gate-logo">
-  <h1>Running Wild Admin</h1>
+  <img src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" alt="" class="gate-logo">
+  <h1 data-st-name="Admin">SingleTrack Admin</h1>
   <p>For the Race Director and safety lead. Enter the admin password.</p>
   <input id="gatePw" type="password" placeholder="Password" autocomplete="current-password" autofocus>
   <button type="submit">Unlock</button>
@@ -94,7 +93,7 @@
 <div id="wrap">
   <div id="map"></div>
   <div id="panel">
-    <h1>Running Wild Safety: Admin</h1>
+    <h1 data-st-name="Admin">SingleTrack Admin</h1>
     <p class="sub"><a href="index.html" style="color:var(--accent);font-weight:600">Back to the staff app</a>. This page is for planning and editing access points. Changes stay on this device until you press <b>Publish file</b> and replace <code>access-edits.js</code> in the event's folder (<code>events/replace <code>data/access-edits.js</code> in the repositorylt;eventreplace <code>data/access-edits.js</code> in the repositorygt;/</code>) in the repository.</p>
     <p class="sub">Click anywhere on the course. It tests every road access point within ~2 km plus the live nearest road crossing, and picks the fastest drive + trail walk-in for each base. Walk-in follows real connector tracks where mapped.</p>
     <div style="margin-bottom:12px">
@@ -114,9 +113,7 @@
       <div id="w3wMsg" style="font-size:11px;color:var(--hg);margin-top:3px"></div>
     </div>
     <div class="legend">
-      <span><span class="dot" style="background:#c0392b"></span>Halls Gap</span>
-      <span><span class="dot" style="background:#1f6f4a"></span>Dunkeld</span>
-      <span><span class="dot" style="background:#1b6ca8"></span>Jimmy Creek</span>
+      <span id="baseKey"></span>
       <span><span class="dot" style="background:#333"></span>Aid station</span>
       <span><span class="dot" style="background:#888"></span>Access point</span>
       <span><span class="dot" style="background:#e67e22"></span>Road crossing</span>
@@ -173,8 +170,8 @@
     </div>
   </div>
 </div>
-<script src="events/events.js?v=14"></script>
-<script src="js/event.js?v=14"></script>
+<script src="events/events.js?v=16"></script>
+<script src="js/event.js?v=16"></script>
 <script>ST.load('course.js')</script>
 <script>ST.load('access-edits.js')</script>
 <script>ST.load('config.js')</script>
@@ -267,6 +264,12 @@ CROSS.forEach(c=>{const col=c.type==='road'?'#e67e22':'#3a86c8';
 // The event's response bases (config.js). The drive time tools below still assume the GPT100's three bases
 // (Halls Gap, Dunkeld, Jimmy Creek) and do nothing for other events until the setup tool replaces them.
 ((window.GPT100_CONFIG||{}).bases||[]).forEach(b=>{const ll=BASE[b.key];if(ll)L.marker([ll[1],ll[0]],{icon:mk(b.color||'#c0392b',20),title:b.name+' base'}).addTo(map).bindPopup('<b>'+b.name+' base</b>');});
+// The key lists this event's bases.
+document.getElementById('baseKey').innerHTML=((window.GPT100_CONFIG||{}).bases||[]).map(b=>'<span><span class="dot" style="background:'+(b.color||'#c0392b')+'"></span>'+b.name+'</span>').join(' ');
+// The access point editor and the drive time check still work with the GPT100's three bases only: other events
+// don't see them until the event setup tool replaces them (docs/BUILD.md).
+const GPT_BASES=!!(BASE.hg&&BASE.dk&&BASE.jc);
+if(!GPT_BASES){const t=document.getElementById('editToggle');if(t){t.hidden=true;t.insertAdjacentHTML('afterend','<p class="sub">Access point editing for this event comes with the event setup tool.</p>');}}
 let showAcc=true,showCross=true;
 rebuildAccessMarkers();
 computeDanger();
@@ -338,6 +341,9 @@ function drawBase(key,w,solid){
 }
 function render(){
   if(!last)return;
+  // The response comparison is the GPT100's (three bases); other events get the km and the nearest aid station only.
+  if(!GPT_BASES){let near=null,nd=1e18;ACCESS.forEach(x=>{if(!x.aid)return;const d=Math.abs(x.trail_km-last.km);if(d<nd){nd=d;near=x;}});
+    document.getElementById('result').innerHTML='<div class="load">km '+last.km.toFixed(1)+(near?' · nearest aid station: '+near.name+' ('+nd.toFixed(1)+' km along the course)':'')+'</div>';return;}
   const km=last.km,ic=last.ic,evac=val('evac'),cp=val('climb');
   const B=[{k:'hg',nm:'Halls Gap',cr:last.hgCross},{k:'dk',nm:'Dunkeld',cr:last.dkCross},{k:'jc',nm:'Jimmy Creek',cr:last.jcCross}];
   const R=B.map(b=>{const w=pick('drive_'+b.k+'_s',b.cr,km,ic);resolve(b.k,w,ic);return {k:b.k,nm:b.nm,o:w};});

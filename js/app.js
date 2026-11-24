@@ -541,6 +541,7 @@
         <p class="notice warn">This event has no drive times in the app yet, so Find can't suggest a team or an ETA. Send the nearest crew from the Control tab's map.</p>
         <p>Aid station before: <b>${asStop(r.aid && r.aid.prev)}</b><br>Aid station after: <b>${asStop(r.aid && r.aid.next)}</b></p>
         <p class="muted">Position ${r.lat.toFixed(5)}, ${r.lon.toFixed(5)}. Height ${Math.round(r.ele)} m.</p></div>`;
+      drawSpot(r);
       return;
     }
     const b = r.best, a = b.a, base = b.base;
@@ -668,6 +669,30 @@
     try { document.execCommand('copy'); ok(); } catch (e) { } t.remove();
   }
 
+  // The casualty on the map, plain to see: a large marker with a pulsing ring and a label that stays up (km and race km),
+  // and the course between the aid stations either side drawn over the top. With no team to send (no drive times),
+  // the map zooms to that section; otherwise drawResult zooms to the team's whole route.
+  function casualtyMarker(r, ll) {
+    const lab = `Casualty · km ${one(r.km)}` + (r.raceKm != null && isSub() ? ` (${esc(race.label)} km ${one(r.raceKm)})` : '');
+    return L.marker(ll, { icon: L.divIcon({ className: 'cas-pin', html: '<span class="cas-ring"></span><span class="cas-dot"></span>', iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 2000, keyboard: false })
+      .bindTooltip(lab, { permanent: true, direction: 'top', offset: [0, -16], className: 'cas-tip' })
+      .bindPopup(`<b>Casualty</b><br>${kmTxt(r.km)}${r.casW3w ? '<br>' + w3wLink(r.casW3w) : ''}`);
+  }
+  function sectionLL(r) {
+    const k0 = r.aid && r.aid.prev ? r.aid.prev.a.trail_km : Math.max(0, r.km - 2), k1 = r.aid && r.aid.next ? r.aid.next.a.trail_km : r.km + 2;
+    return courseLL.slice(G.idxAtKm(Math.min(k0, k1)), G.idxAtKm(Math.max(k0, k1)) + 1);
+  }
+  function drawSpot(r) {
+    if (!map) return;
+    resultLayer.clearLayers();
+    const ll = [r.lat, r.lon], sec = sectionLL(r);
+    if (sec.length > 1) L.polyline(sec, { color: '#ffd21f', weight: 9, opacity: .55, lineCap: 'round' }).addTo(resultLayer);
+    if (r.q.lat != null && r.q.offM > 60) L.polyline([[r.q.lat, r.q.lon], ll], { color: '#111', weight: 1.5, dashArray: '3,4' }).addTo(resultLayer);
+    casMarker = casualtyMarker(r, ll).addTo(resultLayer);
+    const bounds = L.latLngBounds(sec.length > 1 ? sec : [ll]).extend(ll);
+    map.fitBounds(bounds.pad(0.25), { maxZoom: 15 });
+  }
+
   function drawResult(r) {
     if (!map) return;
     resultLayer.clearLayers();
@@ -688,8 +713,7 @@
     L.polyline(walk, { color: '#1666c9', weight: 6, opacity: .95, dashArray: '1,8', lineCap: 'round' }).addTo(resultLayer);
     L.marker(accLL, { icon: pin(b.base.color, 16), zIndexOffset: 800, title: 'Park here: ' + G.cleanName(a) }).bindPopup(`<b>Park here</b><br>${esc(G.cleanName(a))}<br>${w3wLink(a.w3w)}`).addTo(resultLayer);
     if (r.q.lat != null && r.q.offM > 60) L.polyline([[r.q.lat, r.q.lon], ll], { color: '#111', weight: 1.5, dashArray: '3,4' }).addTo(resultLayer);
-    casMarker = L.circleMarker(ll, { radius: 10, color: '#111', weight: 3, fillColor: '#ffd21f', fillOpacity: 1 })
-      .bindPopup(`<b>Casualty</b><br>${kmTxt(r.km)}${r.casW3w ? '<br>' + w3wLink(r.casW3w) : ''}`).addTo(resultLayer);
+    casMarker = casualtyMarker(r, ll).addTo(resultLayer);
     const bounds = L.latLngBounds([ll, accLL].concat(walk));
     if (r.q.lat != null) bounds.extend([r.q.lat, r.q.lon]);
     map.fitBounds(bounds.pad(0.35), { maxZoom: 15 });
@@ -753,9 +777,9 @@
   if (window.GPTIntro) GPTIntro({
     key: 'stIntroSafety',
     steps: [
-      () => ({ title: 'Running Wild Safety', html: `<p>The staff app for Race HQ.</p>
-        <p>Find any spot on the course, keep an eye on the weather triggers, and run Race HQ on the Control tab: where the crew are, what's open, and one quick log.</p>` }),
-      GPTIntro.installStep('Running Wild Safety'),
+      () => ({ title: ST.app('Safety'), html: `<p>The staff app for ${ST.hq}.</p>
+        <p>Find any spot on the course, keep an eye on the weather triggers, and run ${ST.hq} on the Control tab: where the crew are, what's open, and one quick log.</p>` }),
+      GPTIntro.installStep(ST.app('Safety')),
       () => ({ title: '2. Find a casualty', html: `<ol class="rn-steps">
         <li>Type what you've been told: a <b>km</b> (pick the runner's race first if it's a stage or shorter race), <b>coordinates</b> or a <b>what3words</b> address. Or use <b>My location</b>, or <b>Pick on map</b>.</li>
         <li>You get one answer: <b>which team to send</b>, where to park (gated roads flagged), the walk in and the <b>ETA</b>, with the backup team and the stretcher carry-out time.</li>
@@ -764,7 +788,7 @@
       </ol><p class="fd-hint">More than 2 hours to reach, or 4 hours with the carry-out? A red warning says to escalate early.</p>` }),
       () => ({ title: '3. The other tabs', html: `<ul class="rn-tablist">
         <li><b>Weather</b> The race triggers (heat, wind, rain, storms, cloud), BOM warnings, fires nearby, radar and the models. <b>Share weather update</b> writes the daily update.</li>
-        <li><b>Control</b> Race HQ, with the staff password. The map with the crew's phones and inReach units, the next cut-offs, three buttons to log an <b>Injury or sick</b> runner, a <b>Lost or overdue</b> runner or a <b>Note</b>, everything still open (tap <b>Sorted</b> when it is), and the log. <b>Settings</b> has the notices to the phones, help requests, the team code and the downloads.</li>
+        <li><b>Control</b> ${ST.hq}, with the staff password. The map with the crew's phones and inReach units, the next cut-offs, three buttons to log an <b>Injury or sick</b> runner, a <b>Lost or overdue</b> runner or a <b>Note</b>, everything still open (tap <b>Sorted</b> when it is), and the log. <b>Settings</b> has the notices to the phones, help requests, the team code and the downloads.</li>
       </ul><p class="fd-hint">Tap <b>?</b> at the top any time to see this again. Planning guide only: in an emergency call 000.${C.tracking && C.tracking.credit && C.tracking.credit.name ? ` Timing and tracking by ${C.tracking.credit.url ? `<a href="${esc(C.tracking.credit.url)}" target="_blank" rel="noopener">${esc(C.tracking.credit.name)}</a>` : esc(C.tracking.credit.name)}.` : ''}</p>` })
     ]
   });

@@ -196,7 +196,7 @@
       <li><b>Tap the course</b> The km, the team to send and the ETA, with Open in Find for the full answer.</li>
       <li><b>Runners</b> Find a bib, the Runner watch (not moving, off the course, late, tracker quiet) and the field by section. Show centres the map on a runner.</li>
       <li><b>Layers</b> The button at the top right adds emergency markers, camps, track hazards and track grades. Key, at the bottom left, says what the markers mean.</li>
-      <li><b>Contingency, Original, Both</b> The course is the Miler contingency from Mt William Carpark to Jimmy Creek Camp. Original shows the old route over the Major Mitchell Plateau instead, or Both shows the two.</li>
+      ${window.GPT100_CONTINGENCY ? `<li><b>Contingency, Original, Both</b> The course is the Miler contingency from Mt William Carpark to Jimmy Creek Camp. Original shows the old route over the Major Mitchell Plateau instead, or Both shows the two.</li>` : ''}
       <li><b>Whole course</b> Zooms back out. The button under the layers button is full screen.</li>
     </ul><p class="fd-hint">Tap <b>?</b> at the top any time to see this again. Planning guide only: in an emergency call 000.</p>` })]
   });

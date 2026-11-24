@@ -470,7 +470,7 @@
       w ? `Nearest vehicle access: ${E.cleanName(w.a)}${E.isGated(w.a) ? ' (gated)' : ''}, ${one(w.walkKm)} km walk.` : '',
       urgent && !long && r.best ? `Fastest team: ${r.best.base.name}, about ${E.fmt(r.best.total)}${r.night ? ', night times' : ''}.` : '',
       !long && window.GPTTrack ? GPTTrack.line(r, E, { vehicle: w }) : '',
-      `Sent ${tf.format(new Date())} from Running Wild Field.`
+      `Sent ${tf.format(new Date())} from ${ST.app('Field')}.`
     ];
     return lines.filter(Boolean).join('\n');
   }
@@ -502,11 +502,11 @@
     let h = '';
     if (cur) {
       const n = cur.num ? '#' + cur.num : 'it';
-      const L = cur.state === 'refused' ? ['warn', cur.why === 'busy' ? 'Too many messages from this phone just now. Use WhatsApp or the radio.' : 'Race Control isn\'t taking messages from the app right now. Use WhatsApp or the radio.']
-        : cur.closed ? ['', `Race Control has closed ${n}.`]
-        : wait ? (cur.tries ? ['warn', 'No signal. It\'s kept on this phone and goes to Race Control when there is. Use the radio if it can\'t wait.'] : ['', 'Sending to Race Control…'])
-        : cur.state === 'ack' ? ['ok', `Race Control acknowledged ${n} at ${tf.format(cur.ack)}.${cur.sent ? ` Help sent ${tf.format(cur.sent)}.` : ''}`]
-        : ['', `On the Control board as ${n}, ${tf.format(cur.sentAt || cur.t)}. Waiting for Race Control to acknowledge.`];
+      const L = cur.state === 'refused' ? ['warn', cur.why === 'busy' ? 'Too many messages from this phone just now. Use WhatsApp or the radio.' : '' + ST.hq + ' isn\'t taking messages from the app right now. Use WhatsApp or the radio.']
+        : cur.closed ? ['', `${ST.hq} has closed ${n}.`]
+        : wait ? (cur.tries ? ['warn', 'No signal. It\'s kept on this phone and goes to ' + ST.hq + ' when there is. Use the radio if it can\'t wait.'] : ['', 'Sending to ' + ST.hq + '…'])
+        : cur.state === 'ack' ? ['ok', `${ST.hq} acknowledged ${n} at ${tf.format(cur.ack)}.${cur.sent ? ` Help sent ${tf.format(cur.sent)}.` : ''}`]
+        : ['', `On the Control board as ${n}, ${tf.format(cur.sentAt || cur.t)}. Waiting for ${ST.hq} to acknowledge.`];
       h = `<p class="lv-line ${L[0]}">${esc(L[1])}<span class="fd-rc-what">${esc(((cur.body || {}).what || '').slice(0, 90))}</span><button type="button" class="fd-linkbtn" id="fdRcClear">${wait ? 'Cancel it' : 'Clear'}</button></p>`;
     }
     const out = $('fdRcMsg');
@@ -526,8 +526,8 @@
       if (body.dataset.k === key) return;
       body.dataset.k = key;
       body.innerHTML = `<p class="lv-line ok">Sharing as <b>${esc(c.name)}</b>. ${esc(LV.field.status() || 'Your position goes with the next GPS fix.')}</p>
-        ${watchId == null ? '<p class="lv-line warn">Keep updating is off, so Race Control only gets your position when you tap Where am I? <button type="button" class="fd-linkbtn" id="fdShareFollow">Turn it on</button></p>' : ''}
-        <p class="fd-hint">Race Control sees this phone on its map, about once a minute while the app is open and on screen. It stops when the app is closed or the phone sleeps.</p>
+        ${watchId == null ? '<p class="lv-line warn">Keep updating is off, so ' + ST.hq + ' only gets your position when you tap Where am I? <button type="button" class="fd-linkbtn" id="fdShareFollow">Turn it on</button></p>' : ''}
+        <p class="fd-hint">${ST.hq} sees this phone on its map, about once a minute while the app is open and on screen. It stops when the app is closed or the phone sleeps.</p>
         <button type="button" class="btn" id="fdShareStop">Stop sharing</button>`;
       $('fdShareStop').onclick = () => { LV.field.set({ on: false }); shareDraw(); };
       if ($('fdShareFollow')) $('fdShareFollow').onclick = () => { $('fdFollow').checked = true; follow(true); };
@@ -535,7 +535,7 @@
     }
     if (body.dataset.k === 'form') return;
     body.dataset.k = 'form';
-    body.innerHTML = `<p class="fd-hint">Safety Officers and sweeps: let Race Control see this phone on its map, so it knows who is nearest when something happens. Race Control gives out the team code.</p>
+    body.innerHTML = `<p class="fd-hint">Safety Officers and sweeps: let ${ST.hq} see this phone on its map, so it knows who is nearest when something happens. ${ST.hq} gives out the team code.</p>
       <form id="fdShareForm" autocomplete="off">
         <label class="fd-label" for="fdShareName">Your call sign</label><input id="fdShareName" type="text" maxlength="24" placeholder="e.g. Sweep 2 or SO Mt Rosea" value="${esc(c.name)}">
         <label class="fd-label" for="fdShareCode">Team code</label><input id="fdShareCode" type="text" maxlength="20" autocapitalize="characters" spellcheck="false" value="${esc(c.code)}">
@@ -738,7 +738,7 @@
     // iPhone in Safari: install first, or the map downloads twice (js/intro.js).
     if (window.GPTIntro && GPTIntro.installFirst()) {
       el.innerHTML = `<h2>Install the app first</h2>
-        <p>Add Running Wild Field to your home screen, then save the map from there. On iPhone a map saved in Safari isn't shared with the home screen app, so it would download twice (about ${mb} MB).</p>${GPTIntro.iosSteps('GPT100 Field')}
+        <p>Add ${ST.app('Field')} to your home screen, then save the map from there. On iPhone a map saved in Safari isn't shared with the home screen app, so it would download twice (about ${mb} MB).</p>${GPTIntro.iosSteps(ST.app('Field'))}
         <button type="button" class="fd-linkbtn" id="fdSaveHere">Save in Safari anyway</button>`;
       $('fdSaveHere').onclick = () => { GPTIntro.allowBrowserSave(); offlineCard(); };
       return;
@@ -822,17 +822,17 @@
   if (window.GPTIntro) GPTIntro({
     key: 'stIntroField', done: offlineCard, quiet: !!(RP && RP.bib),
     steps: [
-      () => ({ title: 'Running Wild Field', html: `<p>For Safety Officers, sweeps, aid station crews and medics out on the course.</p>
+      () => ({ title: ST.app('Field'), html: `<p>For Safety Officers, sweeps, aid station crews and medics out on the course.</p>
         <p>It tells you exactly where you are on the course, the quickest way out, and sends your location to Event HQ in one tap. Once it's set up it works with no signal.</p>` }),
-      GPTIntro.installStep('Running Wild Field', 'Do this first, before saving the map. On iPhone, the home screen app keeps its own copy, so a map saved here in the browser would have to download again.'),
+      GPTIntro.installStep(ST.app('Field'), 'Do this first, before saving the map. On iPhone, the home screen app keeps its own copy, so a map saved here in the browser would have to download again.'),
       GPTIntro.saveStep(offlineCard),
       () => ({ title: '3. How to use it', html: `<ul class="rn-tablist">
         <li><b>Home</b> Your race at a glance: the race clock, the next cut-offs, Safety Officers on post, and big buttons to the map, cut-offs and Send my location.</li>
         <li><b>Map</b> A big topo map of your race: its course, aid stations with cut-offs, and Safety Officer posts (SO). Tap <b>◎</b> to find yourself: under the profile you'll see your race km, the next aid station and cut-off, and the way out. Drag the profile or tap the course to see any point.</li>
         <li><b>Runners</b> On the map: find a bib, the Runner watch (not moving, off the course, late, tracker quiet), the field by section and the front and tail of each race. Show centres the map on a runner. Tap any runner for how far they are from you, the climb between you, when they'll reach you and their age category.</li>
         <li><b>Where</b> Tap <b>Where am I?</b> for your course km, between which aid stations, and how far off the course you are (and which way the course is). No GPS? Type the km.</li>
-        <li><b>Send</b> <b>Send my location</b> or <b>Urgent: casualty here</b> opens WhatsApp with the km, position, map link and nearest vehicle access ready. Add a note, pick the Safety Officer and Rescue Team group (or Event HQ), send. While Race Control is taking them, the same card can put your location or an urgent casualty straight onto the Control board, and tells you when it's acknowledged.</li>
-        <li><b>Control map</b> At the bottom of the Where tab, <b>Show me on the Control map</b> shares your position with Race Control once you have the team code from the briefing.</li>
+        <li><b>Send</b> <b>Send my location</b> or <b>Urgent: casualty here</b> opens WhatsApp with the km, position, map link and nearest vehicle access ready. Add a note, pick the Safety Officer and Rescue Team group (or Event HQ), send. While ${ST.hq} is taking them, the same card can put your location or an urgent casualty straight onto the Control board, and tells you when it's acknowledged.</li>
+        <li><b>Control map</b> At the bottom of the Where tab, <b>Show me on the Control map</b> shares your position with ${ST.hq} once you have the team code from the briefing.</li>
         <li><b>Way out</b> The nearest vehicle access and how long it takes on foot, and the aid stations either side.</li>
         <li><b>Race</b> Pick your race (it stays picked): every aid station with the first runner's expected time and the cut-off, and when you'll reach each one at your current pace (or from a target time). Handy for sweeps.</li>
         <li><b>Trail</b> Turn on <b>Keep updating</b> to follow your position and draw the trail you've walked.</li>

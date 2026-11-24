@@ -342,7 +342,7 @@
   function locationText() {
     // Far from the picked course, the race km means little: say so rather than give one.
     const rl = `${race.label}${race.stages.length > 1 ? ' ' + stage.label : ''}`;
-    return `GPT100 runner location: ${here.offM > 2000 ? `${dist(here.offM)} from the ${rl} course (check which race)` : `${rl}, km ${one(here.rk)}${here.offM > OFF ? ` (${dist(here.offM)} off the course)` : ''}`}. ${here.lat.toFixed(5)}, ${here.lon.toFixed(5)} (GPS ±${Math.round(here.acc)} m). https://maps.google.com/?q=${here.lat.toFixed(5)},${here.lon.toFixed(5)}${here.w3w ? ` what3words ///${here.w3w}` : here.near ? ` what3words ///${here.near.words} (the course, ${Math.max(3, here.near.m)} m from me)` : ''}`;
+    return `${ST.event.name} runner location: ${here.offM > 2000 ? `${dist(here.offM)} from the ${rl} course (check which race)` : `${rl}, km ${one(here.rk)}${here.offM > OFF ? ` (${dist(here.offM)} off the course)` : ''}`}. ${here.lat.toFixed(5)}, ${here.lon.toFixed(5)} (GPS ±${Math.round(here.acc)} m). https://maps.google.com/?q=${here.lat.toFixed(5)},${here.lon.toFixed(5)}${here.w3w ? ` what3words ///${here.w3w}` : here.near ? ` what3words ///${here.near.words} (the course, ${Math.max(3, here.near.m)} m from me)` : ''}`;
   }
   const fresh = () => here && Date.now() - here.t < 5 * 60e3;
   // Far from the picked course the race km means little: say how far, as the shared text does.
@@ -830,7 +830,7 @@
     else { btn.textContent = 'Map saved ✓'; btn.disabled = true; out.textContent = 'Saved. The map now works without signal.'; }
     offlineCard();
   }
-  const iosSteps = '<ol class="rn-steps"><li>Tap <b>Share</b> <span class="rn-ico">⬆︎</span> at the bottom of Safari (or the top on iPad).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open <b>GPT100</b> from your home screen and save the map there.</li></ol>';
+  const iosSteps = '<ol class="rn-steps"><li>Tap <b>Share</b> <span class="rn-ico">⬆︎</span> at the bottom of Safari (or the top on iPad).</li><li>Tap <b>Add to Home Screen</b>, then <b>Add</b>.</li><li>Open <b>' + ST.app('Runner') + '</b> from your home screen and save the map there.</li></ol>';
   async function offlineCard() {
     const el = $('fdOffline');
     if (!OM || !OM.available()) { el.hidden = true; return; }
@@ -843,7 +843,7 @@
     el.className = 'fd-offline fd-card todo';
     if (installFirst()) {
       el.innerHTML = `<h2>Install the app first</h2>
-        <p>Add GPT100 to your home screen, then save the map from there. On iPhone a map saved in Safari isn't shared with the home screen app, so it would download twice (about ${mb} MB).</p>${iosSteps}
+        <p>Add ${ST.app('Runner')} to your home screen, then save the map from there. On iPhone a map saved in Safari isn't shared with the home screen app, so it would download twice (about ${mb} MB).</p>${iosSteps}
         <button type="button" class="fd-linkbtn" id="fdSaveHere">Save in Safari anyway</button>`;
       $('fdSaveHere').onclick = () => { store.set('saveInBrowser', true); offlineCard(); };
       return;
