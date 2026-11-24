@@ -216,3 +216,9 @@ body.field .fd-rp .btn.small { min-height: 44px; }
 .care-list .care-notes { opacity: 1; font-style: italic; }
 .care-del { margin-top: 4px; }
 .linkbtn { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+
+.care-watch li.care-late b { color: var(--red, #c0392b); }
+.care-watch .btn.small { margin: 6px 6px 0 0; }
+.care-flag { margin-top: 10px; }
+.care-flag summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+.care-flag input { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px; border: 2px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); margin-bottom: 6px; }
