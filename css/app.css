@@ -1060,3 +1060,22 @@ body.on-rc .foot { display: none; }
 .st-evrow span { font-size: 13px; opacity: .75; }
 .st-evrow.on { border: 2px solid var(--gold, #f2a531); }
 .st-evclose { margin-top: 6px; }
+
+/* ---------- Medical tab (js/care-hq.js) ---------- */
+#tab-medlog { padding: 16px; }
+.care-hq-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.care-hq-head h2 { margin: 0 auto 0 0; }
+.care-hq-err { color: var(--red, #c0392b); font-size: 13px; }
+.care-hq-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.care-hq-tiles div { background: var(--card, rgba(127,127,127,.08)); border-radius: 10px; padding: 10px; font-size: 13px; }
+.care-hq-tiles b { display: block; font: 400 30px/1 var(--head); }
+.care-hq-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .care-hq-cols { grid-template-columns: 1fr; } .care-hq-tiles { grid-template-columns: repeat(2, 1fr); } }
+.care-hq-t { width: 100%; border-collapse: collapse; font-size: 14px; }
+.care-hq-t th, .care-hq-t td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.care-hq-t tbody tr { cursor: pointer; }
+.care-hq-t tr.on td { background: rgba(242,165,49,.18); }
+.care-hq-list { list-style: none; padding: 0; margin: 0; }
+.care-hq-list li { padding: 8px 0; border-top: 1px solid var(--line); }
+.care-hq-list li.wd b { color: var(--red, #c0392b); }
+.care-hq-list small { display: block; opacity: .75; }

@@ -66,7 +66,7 @@ body.field { background: var(--bg); font-size: 16px; }
 #fdRaceCard .rn-schedfor { margin-bottom: 4px; }
 #fdRaceCard .rn-stages { margin-bottom: 4px; }
 /* Tabs: Where, Map and Race */
-.rn-nav.fd-nav { grid-template-columns: repeat(4, 1fr); }
+.rn-nav.fd-nav { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }  /* as many tabs as the event switches on */
 .fd-mapfor { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 2px 2px 8px; font: 400 20px/1.1 var(--head); letter-spacing: .5px; }
 .fd-mapfor .fd-linkbtn { font: 700 13px var(--body); letter-spacing: 0; white-space: nowrap; }
 .fd-maptab .fd-mapcard { margin-top: 0; }
@@ -199,3 +199,20 @@ body.field .fd-rp .btn.small { min-height: 44px; }
 .fd-share input[type=text] { min-height: 48px; padding: 0 12px; font-size: 17px; border: 2px solid var(--ink); border-radius: 10px; background: var(--input); color: var(--ink); margin-bottom: 8px; }
 .fd-share .btn { justify-self: start; min-height: 48px; }
 .fd-share .lv-line { margin: 0 0 8px; }
+
+/* ---------- The medical log (js/care.js) ---------- */
+.care-in input, #carePost, #careBib, #careNotes { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 10px; border: 2px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); margin-bottom: 6px; }
+#careHere { margin: 0 0 8px; }
+.care-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.care-chip { min-height: 44px; padding: 0 12px; border: 2px solid var(--ink); border-radius: 22px; background: var(--paper); color: var(--ink); font: 600 14px Montserrat, sans-serif; cursor: pointer; }
+.care-chip.on { background: var(--btn); border-color: var(--btn); color: #fff; }
+.care-save { width: 100%; margin-top: 6px; }
+.care-minor { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.care-minor span { font-size: 13px; opacity: .8; }
+.care-unsent { background: #fff3cd; color: #5c4400; border-radius: 8px; padding: 8px 10px; font-size: 14px; }
+.care-list { list-style: none; padding: 0; margin: 0 0 10px; }
+.care-list li { padding: 8px 0; border-top: 1px solid var(--line); }
+.care-list small { display: block; opacity: .75; }
+.care-list .care-notes { opacity: 1; font-style: italic; }
+.care-del { margin-top: 4px; }
+.linkbtn { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }

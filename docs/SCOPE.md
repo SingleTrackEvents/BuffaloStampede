@@ -131,6 +131,8 @@ Everything the GPT100 field app does (Where am I?, nearest way out, carry-out, S
 
 ### 4.5 Medical Team
 
+Rethought after the GPT100 (24 November 2026): see [MEDICAL_AND_RISK.md](MEDICAL_AND_RISK.md). The Medical and Risk tabs become the live record of the weekend, starting with the medical log and withdrawals.
+
 The GPT100 medical plan view (who is where, runner numbers by hour, vehicle movements) carries over, filled from the Race Day Medical roster once it's signed. **Decided:** a full patient record in the app.
 
 - **Patient record.** When a medic reaches a casualty, or a runner presents at the Medical Base, Eurobin or the Chalet, they open a record from the incident (or by bib). It carries the runner's details and whatever emergency contact Race Roster already holds. Time, triage category (the plan's 1 to 3), observations, treatment, outcome and handover are recorded on the phone, offline if needed.
