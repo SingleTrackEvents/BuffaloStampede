@@ -2,6 +2,7 @@
 // sheet's pack lists). items: every item in the unit it's packed in. stations: what each station is sent, the most on one
 // day. triggers: the restock triggers (Aid Station Operation Plan v0.3, section 05); est is the race sheet's estimate.
 // yard: the yard and coolroom locations the yard team stocktakes. everyMin: how often stations stocktake.
+// field: runners on each course (2027 targets), for the share through a station until the timing mats count them.
 window.ST_STOCK = {
  "items": [
   {
@@ -415,5 +416,11 @@ window.ST_STOCK = {
   "Dawsons coolroom 1 (Pioneer Park)",
   "Dawsons coolroom 2 (Pioneer Park)"
  ],
- "everyMin": 120
+ "everyMin": 120,
+ "field": {
+  "10k": 930,
+  "20k": 1030,
+  "42k": 980,
+  "100k": 1100
+ }
 };

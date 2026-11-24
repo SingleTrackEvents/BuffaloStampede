@@ -25,6 +25,9 @@ TRIGGERS = [
     {'id': 'r42', 'name': '42k stock', 'when': 'Saturday after 17:00', 'est': '2027-03-20T17:00',
      'to': ['Eurobin Creek', 'Buckland Valley', 'Clearspot', 'Bakers Gully'], 'note': 'Sunday\'s 42k stock in place before the overnight crews leave.'},
 ]
+# Runners on each course, for the share of runners through a station until the timing mats give the real count:
+# the 2027 targets in the entry report (docs/SCOPE.md section 2), with the slams on top. The 100k is solo plus relay.
+FIELD = {'10k': 930, '20k': 1030, '42k': 980, '100k': 1100}
 YARD = ['Yard', 'Main coolroom (village)', 'Ovens Valley coolroom (village concourse)', 'Dawsons coolroom 1 (Pioneer Park)', 'Dawsons coolroom 2 (Pioneer Park)']
 
 def slug(s):
@@ -71,12 +74,13 @@ def main(path):
         i += 1
     order = list(items)
     out = {'items': [items[k] for k in order], 'stations': {st: {k: v[k] for k in order if k in v} for st, v in stations.items()},
-           'triggers': TRIGGERS, 'yard': YARD, 'everyMin': 120}
+           'triggers': TRIGGERS, 'yard': YARD, 'everyMin': 120, 'field': FIELD}
     with open(OUT, 'w') as f:
         f.write('// Buffalo Stampede 2027: the stocktake lists (tools/events/buffalo/stock.py, from the BSF_2027 Aid Station Consumptions\n'
                 '// sheet\'s pack lists). items: every item in the unit it\'s packed in. stations: what each station is sent, the most on one\n'
                 '// day. triggers: the restock triggers (Aid Station Operation Plan v0.3, section 05); est is the race sheet\'s estimate.\n'
-                '// yard: the yard and coolroom locations the yard team stocktakes. everyMin: how often stations stocktake.\n')
+                '// yard: the yard and coolroom locations the yard team stocktakes. everyMin: how often stations stocktake.\n'
+                '// field: runners on each course (2027 targets), for the share through a station until the timing mats count them.\n')
         f.write('window.ST_STOCK = ' + json.dumps(out, indent=1) + ';\n')
     for st, v in out['stations'].items(): print('%-22s %d items' % (st, len(v)))
     print(len(out['items']), 'items in all')

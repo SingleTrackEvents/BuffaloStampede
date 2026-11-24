@@ -117,6 +117,7 @@ New. The GPT100 app had nothing for aid stations. **Decided:** only the Aid Stat
 - **Report in.** The plan asks each station to report to HQ when it opens, every 2 hours, on any change and when it closes. The app prompts for each one (open, status, close) so the report is a tap, not a phone call.
 - **Sign in by station.** The manager picks where they are, then puts in that station's code from HQ.
 - **Stocktake.** Every 2 hours the station runs down its own pack list (from the Aid Station Consumptions sheet) and marks each item Plenty, Half, Low or Out, with a count only where it helps. It goes to the yard.
+- **Runners through.** The share of this session's runners through the station, per race and pass, so the manager can judge how far the stock has to stretch. From the timing mats once the feed is live; until then estimated from how the 2026 100k field arrived (the Living It Live GPS tracks) and the 2027 targets. A count in the stocktake shows whether the item will last the rest ("Coke: 40 left, about 112 for the rest").
 - **Restock runs.** What the yard has sent, who's driving and when it's due. The manager marks it received.
 - **Ask the yard.** Low on water, ice, food or crew? One tap sends a request with the station's name. The yard answers it, HQ sees it too, and the station sees when it's on its way.
 - **Holds.** When HQ calls a hold, the station gets it at once and confirms it's holding.
@@ -126,10 +127,10 @@ New. The GPT100 app had nothing for aid stations. **Decided:** only the Aid Stat
 
 The yard and logistics team sign in on the same Station tab (pick Yard, then the yard's code) and get the yard's screen:
 
-- **Stock at every station.** Each station's latest stocktake, Low and Out first, with late stocktakes flagged.
+- **Stock at every station.** Each station's latest stocktake and share of runners through, Low, Out and won't-last items first, with late stocktakes flagged.
 - **Requests.** Every station's requests, answered On its way or Done.
 - **Restock triggers.** From the Aid Station Operation Plan: the 100k restock, the overnight restock and Sunday's 42k stock, with the race sheet's estimated time and the stations each one goes to.
-- **Restock runs.** Built from a station's stocktake (Low and Out items topped up to the planned amount) or from a trigger, with driver, vehicle and due time, then marked loaded, on the way and delivered. The station confirms it received it.
+- **Restock runs.** Built from a station's stocktake (Low, Out and won't-last items, enough for the runners still to come less what's there) or from a trigger, with driver, vehicle and due time, then marked loaded, on the way and delivered. The station confirms it received it.
 - **Yard and coolroom stock.** A stocktake for the yard and each coolroom.
 
 ### 4.4 Safety Officers, sweeps and marshals

@@ -5,6 +5,9 @@
 //                 a countdown to the cut-off (races.js). Live runner counts come with the tracking feed.
 //   Report in     open, every 2 hours, any change, close: stock, staff and crowding (green, amber, red) and a note.
 //                 The app reminds the manager when the next 2-hourly report is due.
+//   Runners through  the share of this session's runners through the station (js/through.js): from the timing mats
+//                 when the feed is on, estimated from the race sheet until then. Against a stocktake count it says what
+//                 the rest of the field still needs, and the yard builds runs to that.
 //   Stocktake     every 2 hours: each item on the station's pack list (events/<id>/stock.js) as Plenty, Half, Low or Out,
 //                 with a count where it helps. It goes to the yard.
 //   Restock runs  what the yard has sent, who's driving and when it's due; the manager marks it received.
@@ -42,6 +45,10 @@
   const isYard = () => me.post === YARD;
   const list = post => S && S.stations[post] ? Object.keys(S.stations[post]) : [];
   const unitOf = id => IT[id] ? IT[id].unit : '', nameOf = id => IT[id] ? IT[id].name : id;
+  const TH = window.STThrough, thr = (post, t) => TH ? TH.station(post, t) : null;
+  // Items whose count won't cover the runners still to come: [id, count, needed].
+  const shortOf = (x, post, th) => !th || !S || !S.stations[post] ? [] : Object.keys(x.counts || {}).filter(k => S.stations[post][k]).map(k => [k, x.counts[k], TH.need(S.stations[post][k], th.pct)]).filter(([, c, n]) => c < n);
+  const thLine = th => th ? `<b>${TH.pc(th.pct)}</b> of this session's runners through (${th.through} of ${th.live && !th.estimate ? '' : 'about '}${th.total})${th.estimate ? '<small>Estimated from how the 2026 field ran (the race sheet where there are no 2026 tracks), until the timing mats are live.</small>' : '<small>From the timing mats.</small>'}` : '';
   const melDay = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Melbourne' }).format(new Date());
 
   let me = load('me', { code: '', who: '', post: '' }), q = load('q', []), rows = [], busy = false, msg = '', flash = '', flashT = 0;
@@ -127,8 +134,8 @@
   const stockRows = (ids, d, plan, prev) => `<div class="stk">${ids.map(id => `<div class="stk-row" data-id="${esc(id)}"><div class="stk-name"><b>${esc(nameOf(id))}</b><small>${esc(unitOf(id))}${plan && plan[id] ? ' · planned ' + esc(plan[id]) : ''}${prev && prev.levels[id] ? ' · last ' + esc(prev.levels[id]) : ''}</small></div>
       <div class="care-chips stk-lv" data-stk="${esc(id)}">${SLV.map(([k, l]) => `<button type="button" class="care-chip lv-${k}${d.levels[id] === k ? ' on' : ''}" data-v="${k}">${l}</button>`).join('')}</div>
       <input class="stk-n" data-n="${esc(id)}" inputmode="decimal" maxlength="7" placeholder="Count" value="${esc(d.counts[id] == null ? '' : d.counts[id])}"></div>`).join('')}</div>`;
-  const stockSummary = x => { if (!x) return ''; const o = Object.keys(x.levels).filter(k => x.levels[k] === 'out'), l = Object.keys(x.levels).filter(k => x.levels[k] === 'low');
-    return (o.length ? '<b class="stk-out">Out: ' + esc(o.map(nameOf).join(', ')) + '</b> ' : '') + (l.length ? '<span class="stk-low">Low: ' + esc(l.map(k => nameOf(k) + (x.counts[k] != null ? ' (' + x.counts[k] + ')' : '')).join(', ')) + '</span>' : '') + (!o.length && !l.length ? 'All good' : ''); };
+  const stockSummary = (x, post, th) => { if (!x) return ''; const sh = shortOf(x, post, th); const o = Object.keys(x.levels).filter(k => x.levels[k] === 'out'), l = Object.keys(x.levels).filter(k => x.levels[k] === 'low');
+    return (o.length ? '<b class="stk-out">Out: ' + esc(o.map(nameOf).join(', ')) + '</b> ' : '') + (l.length ? '<span class="stk-low">Low: ' + esc(l.map(k => nameOf(k) + (x.counts[k] != null ? ' (' + x.counts[k] + ')' : '')).join(', ')) + '</span>' : '') + (!o.length && !l.length && !sh.length ? 'All good' : '') + (sh.length ? '<br><b class="stk-out">Won\'t last: ' + esc(sh.map(([k, c, n]) => nameOf(k) + ' (' + c + ' left, about ' + n + ' for the rest)').join(', ')) + '</b>' : ''); };
   const sendStock = (d, extra) => {
     const levels = Object.assign({}, d.levels), counts = {};
     Object.keys(d.counts).forEach(k => { const n = parseFloat(d.counts[k]); if (isFinite(n) && n >= 0) { counts[k] = n; if (!levels[k]) levels[k] = n ? 'half' : 'out'; } });
@@ -141,7 +148,8 @@
   function render() {
     if (!me.post) return signIn();
     if (isYard()) return renderYard();
-    const now = Date.now(), A = all(), H = holds(), ss = sessions(), ps = passes();
+    const now = Date.now(), A = all(), H = holds(), ss = sessions(), ps = passes(), th = thr(me.post, now);
+    const thOf = p => th && th.passes.find(x => x.race === p.race && x.pass === p.pass && x.first === p.first);
     const reports = A.filter(x => x.kind === 'report' && x.post === me.post).sort((a, b) => b.t - a.t), last = reports[0];
     const openNow = ss.find(s => s.a <= now && now < s.z), next = ss.find(s => s.a > now);
     const isOpen = last && last.type !== 'close';
@@ -153,8 +161,8 @@
         ${h.acked ? '<p><b>You confirmed you\'re holding.</b> Keep runners here until ' + esc(ST.hq) + ' releases the hold.</p>' : `<button class="btn primary" data-hold="${esc(h.hold)}" type="button">We're holding runners</button>`}</section>`).join('')}
       <section class="fd-card"><h2>${esc(me.post)}</h2><p class="fd-hint">${esc(me.who)} · <button type="button" class="linkbtn" id="stnOut">Sign out</button></p>${unsent}
         <p>${openNow ? `Session now: <b>${esc(hm(openNow.a))} to ${esc(hm(openNow.z))}</b>.` : next ? `Next session: <b>${esc(hm(next.a))} to ${esc(hm(next.z))}</b> (in ${dur(next.a - now)}).` : 'No more sessions in the plan.'}
-          ${isOpen ? ` Last report ${esc(hm(last.t))}. ${now > due ? '<b class="stn-late">Report due now.</b>' : 'Next report due ' + esc(hm(due)) + '.'}` : ' Not reported open yet.'}</p>
-        ${ps.length ? `<table class="stn-t"><thead><tr><th>Race</th><th>First runner</th><th>Cut-off</th></tr></thead><tbody>${ps.map(p => `<tr class="${p.cut && now > p.cut ? 'past' : ''}"><td>${esc(p.race)}${p.pass ? ' (' + esc(p.pass) + ')' : ''}${p.drop ? '<small>Drop bags</small>' : ''}${p.team ? '<small>Relay change</small>' : ''}${p.pacer ? '<small>Pacers</small>' : ''}</td><td>${esc(hm(p.first))}</td><td>${p.cut ? esc(hm(p.cut)) + (now < p.cut && p.cut - now < 6 * 3600e3 ? '<small>in ' + dur(p.cut - now) + '</small>' : '') : 'None'}</td></tr>`).join('')}</tbody></table>
+          ${th ? '<p class="stn-through">' + thLine(th) + '</p>' : ''}${isOpen ? ` Last report ${esc(hm(last.t))}. ${now > due ? '<b class="stn-late">Report due now.</b>' : 'Next report due ' + esc(hm(due)) + '.'}` : ' Not reported open yet.'}</p>
+        ${ps.length ? `<table class="stn-t"><thead><tr><th>Race</th><th>First runner</th><th>Cut-off</th>${th ? '<th>Through</th>' : ''}</tr></thead><tbody>${ps.map(p => `<tr class="${p.cut && now > p.cut ? 'past' : ''}"><td>${esc(p.race)}${p.pass ? ' (' + esc(p.pass) + ')' : ''}${p.drop ? '<small>Drop bags</small>' : ''}${p.team ? '<small>Relay change</small>' : ''}${p.pacer ? '<small>Pacers</small>' : ''}</td><td>${esc(hm(p.first))}</td><td>${p.cut ? esc(hm(p.cut)) + (now < p.cut && p.cut - now < 6 * 3600e3 ? '<small>in ' + dur(p.cut - now) + '</small>' : '') : 'None'}</td>${th ? `<td>${thOf(p) ? TH.pc(thOf(p).pct) + '<small>' + thOf(p).through + ' of ' + thOf(p).total + '</small>' : ''}</td>` : ''}</tr>`).join('')}</tbody></table>
           <p class="fd-hint">First runners are the race sheet's prediction. Live counts of who's due come with the tracking feed.</p>` : ''}</section>
       <section class="fd-card"><h2>Report in</h2><p class="fd-hint">When you open, every 2 hours, whenever something changes, and when you close.</p>
         ${chips('type', [['open', 'Open'], ['status', 'Update'], ['close', 'Closed']], rep.type)}
@@ -174,13 +182,14 @@
     bind();
   }
   function stockCard(A, now) {
-    const ids = list(me.post), prev = lastStock(A, me.post), due = prev ? prev.t + STOCK_MS : null;
+    const ids = list(me.post), prev = lastStock(A, me.post), due = prev ? prev.t + STOCK_MS : null, th = thr(me.post, now);
     const runs = A.filter(x => x.kind === 'run' && x.post === me.post).sort((a, b) => b.t - a.t);
     const inbound = runs.filter(r => runState(A, r) !== 'received'), got = runs.filter(r => runState(A, r) === 'received').slice(0, 3);
     return `${inbound.length || got.length ? `<section class="fd-card"><h2>Restock runs</h2><ul class="care-list">${inbound.map(r => `<li>${runLine(A, r)}<button class="btn small" data-got="${esc(r.id)}" type="button">Received</button></li>`).join('')}${got.map(r => `<li class="past">${runLine(A, r)}</li>`).join('')}</ul></section>` : ''}
       ${ids.length ? `<section class="fd-card"><h2>Stocktake</h2><p class="fd-hint">Every ${Math.round(STOCK_MS / 60000 / 60 * 10) / 10} hours to the yard. A quick level for each item; a count only where it helps.
         ${prev ? 'Last ' + esc(hm(prev.t)) + '. ' + (now > due ? '<b class="stn-late">Stocktake due now.</b>' : 'Next due ' + esc(hm(due)) + '.') : '<b>No stocktake yet.</b>'}</p>
-        ${prev ? `<p class="stk-sum">${stockSummary(prev)}</p>` : ''}
+        ${th ? `<p class="stk-sum">${thLine(th)} A count against an item tells you whether it'll last the rest.</p>` : ''}
+        ${prev ? `<p class="stk-sum">${stockSummary(prev, me.post, th)}</p>` : ''}
         <details${!prev || now > due ? ' open' : ''}><summary>Do the stocktake</summary>${stockRows(ids, stk, S.stations[me.post], prev)}<button class="btn primary care-save" id="stkSend" type="button">Send stocktake</button></details></section>` : ''}`;
   }
 
@@ -204,7 +213,8 @@
     const stns = PLACES.filter(p => list(p).length).map(p => {
       const x = lastStock(A, p), rep = A.filter(y => y.kind === 'report' && y.post === p).sort((a, b) => b.t - a.t)[0], open = rep && rep.type !== 'close';
       const bad = x ? Object.keys(x.levels).filter(k => ['low', 'out'].includes(x.levels[k])).length + Object.keys(x.levels).filter(k => x.levels[k] === 'out').length * 10 : 0;
-      return { p, x, open, late: open && (!x || now - x.t > STOCK_MS + 15 * 60000), bad };
+      const th = thr(p, now), sh = x ? shortOf(x, p, th).length : 0;
+      return { p, x, open, th, late: open && (!x || now - x.t > STOCK_MS + 15 * 60000), bad: bad + sh * 5 };
     }).sort((a, b) => (b.late - a.late) || (b.bad - a.bad));
     const unsent = q.length || msg ? `<p class="care-unsent">${q.length ? q.length + ' waiting to send. ' : ''}${esc(msg)}</p>` : '';
     const ylocs = (S && S.yard) || [YARD], yprev = lastStock(A, YARD, ystk.loc);
@@ -213,7 +223,7 @@
       <section class="fd-card"><h2>Requests${reqs.length ? ' (' + reqs.length + ')' : ''}</h2>${reqs.length ? `<ul class="care-list">${reqs.map(r => `<li><b>${esc(r.post)}</b>: ${esc(r.items.join(', ') || 'request')}${r.note ? ' (' + esc(r.note) + ')' : ''}<small>Asked ${esc(hm(r.t))}${r.who ? ' by ' + esc(r.who) : ''}${r.state === 'onway' ? ' · on its way since ' + esc(hm(r.st_t)) : ''}</small>
         ${r.state !== 'onway' ? `<button class="btn small" data-req="${esc(r.id)}" data-s="onway" type="button">On its way</button>` : ''}<button class="btn small" data-req="${esc(r.id)}" data-s="done" type="button">Done</button></li>`).join('')}</ul>` : '<p class="fd-hint">Nothing waiting.</p>'}</section>
       <section class="fd-card"><h2>Stock at the stations</h2><p class="fd-hint">Each station's latest stocktake. Stations stocktake every ${Math.round(STOCK_MS / 60000)} minutes while open.</p>
-        <ul class="care-list">${stns.map(s => `<li class="${s.late ? 'stk-late' : ''}"><b>${esc(s.p)}</b>${s.late ? ' <b class="stn-late">Stocktake overdue</b>' : ''}<small>${s.x ? esc(hm(s.x.t)) + (s.x.who ? ' by ' + esc(s.x.who) : '') : 'No stocktake yet'}${s.open ? ' · open' : ''}</small>${s.x ? `<p class="stk-sum">${stockSummary(s.x)}</p>` : ''}
+        <ul class="care-list">${stns.map(s => `<li class="${s.late ? 'stk-late' : ''}"><b>${esc(s.p)}</b>${s.late ? ' <b class="stn-late">Stocktake overdue</b>' : ''}<small>${s.x ? esc(hm(s.x.t)) + (s.x.who ? ' by ' + esc(s.x.who) : '') : 'No stocktake yet'}${s.open ? ' · open' : ''}${s.th ? ' · ' + TH.pc(s.th.pct) + ' of runners through' + (s.th.estimate ? ' (estimate)' : '') : ''}</small>${s.x ? `<p class="stk-sum">${stockSummary(s.x, s.p, s.th)}</p>` : ''}
           <button class="btn small" data-build="${esc(s.p)}" type="button">Build a run</button></li>`).join('')}</ul></section>
       ${trig.length ? `<section class="fd-card"><h2>Restock triggers</h2><ul class="care-list">${trig.map(t => { const d = A.find(x => x.kind === 'trigger' && x.trigger === t.id), est = mel(t.est);
         return `<li class="${d ? 'past' : ''}"><b>${esc(t.name)}</b>: ${esc(t.when)}<small>Estimated ${esc(hm(est))}${!d && est > now ? ' (in ' + dur(est - now) + ')' : ''} · to ${esc(t.to.join(', '))}${t.note ? ' · ' + esc(t.note) : ''}${d ? ' · done ' + esc(hm(d.t)) : ''}</small>
@@ -256,8 +266,15 @@
       const to = b.dataset.build, trig = b.dataset.trig ? S.triggers.find(x => x.id === b.dataset.trig) : null, x = to ? lastStock(A, to) : null, flag = {}, qty = {};
       // From a stocktake: Low and Out items, topped up to the station's planned amount. From a trigger: the station's plan.
       if (trig && S.stations[to]) Object.assign(qty, S.stations[to]);
-      if (x) Object.keys(x.levels).forEach(k => { if (['low', 'out'].includes(x.levels[k])) { flag[k] = x.levels[k]; const plan = S.stations[to] && S.stations[to][k]; if (!trig) qty[k] = plan ? Math.max(0, Math.round((plan - (x.counts[k] || 0)) * 10) / 10) || plan : ''; } });
-      startRun(to, trig ? trig.name + ': ' + trig.when + '. Filled with the station\'s planned amounts; trim to what\'s needed.' : x ? 'From ' + to + '\'s stocktake at ' + hm(x.t) + ': Low and Out items, topped up to the planned amount.' : '', flag, qty, trig ? trig.id : '');
+      // Without a trigger, each Low, Out or short item gets what the runners still to come need, less what's there.
+      const th = to ? thr(to, Date.now()) : null, pct = th ? th.pct : 0;
+      if (x) Object.keys(x.levels).forEach(k => {
+        const plan = S.stations[to] && S.stations[to][k], c = x.counts[k], nd = plan ? TH ? TH.need(plan, pct) : plan : 0, short = c != null && nd && c < nd;
+        if (!['low', 'out'].includes(x.levels[k]) && !short) return;
+        flag[k] = short && x.levels[k] !== 'out' ? 'short' : x.levels[k];
+        if (!trig) qty[k] = nd ? Math.max(0, Math.round((nd - (c || 0)) * 10) / 10) || '' : '';
+      });
+      startRun(to, trig ? trig.name + ': ' + trig.when + '. Filled with the station\'s planned amounts; trim to what\'s needed.' : x ? 'From ' + to + '\'s stocktake at ' + hm(x.t) + ': Low, Out and short items, enough for the runners still to come' + (th ? ' (' + TH.pc(th.pct) + ' through' + (th.estimate ? ', estimated' : '') + ')' : '') + ', less what they counted.' : '', flag, qty, trig ? trig.id : '');
     }));
     if (run) {
       $('runTo').addEventListener('change', e => { run.to = e.target.value; render(); });
